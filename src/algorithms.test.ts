@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { ALL_ALGORITHMS, ALGORITHM_CATEGORIES } from './data/algorithms';
+
+let algorithmsCss = '';
+let algorithmsPanelTsx = '';
+
+beforeAll(async () => {
+  // @ts-ignore
+  const fs = await import('node:fs');
+  algorithmsCss = fs.readFileSync(new URL('./algorithms.css', import.meta.url), 'utf-8');
+  algorithmsPanelTsx = fs.readFileSync(new URL('./AlgorithmsPanel.tsx', import.meta.url), 'utf-8');
+});
 
 describe('Algorithms Registry', () => {
   it('should contain all 14 categories', () => {
@@ -158,5 +168,35 @@ describe('Algorithms Registry', () => {
     for (const name of requiredNames) {
       expect(namesInRegistry.has(name)).toBe(true);
     }
+  });
+
+  describe('Wrapping Chip Cloud Category Filter Layout', () => {
+    it('implements flex-wrap and removes horizontal scroll constraints', () => {
+      // 1. Flex Wrap
+      expect(algorithmsCss).toMatch(/\.algo-category-pills\s*\{[^}]*display:\s*flex;/);
+      expect(algorithmsCss).toMatch(/\.algo-category-pills\s*\{[^}]*flex-wrap:\s*wrap;/);
+
+      // 2. No horizontal scroll constraints or scrollbars
+      expect(algorithmsCss).not.toMatch(/\.algo-category-pills\s*\{[^}]*overflow-x:\s*(auto|scroll)/);
+      expect(algorithmsCss).not.toMatch(/\.algo-category-pills\s*\{[^}]*scrollbar-width/);
+      expect(algorithmsCss).not.toMatch(/\.algo-category-pills\s*\{[^}]*whitespace-nowrap/);
+
+      // 3. Uniform spacing
+      expect(algorithmsCss).toMatch(/\.algo-category-pills\s*\{[^}]*gap:\s*8px\s+10px;/);
+
+      // 4. Chip styling: natural height
+      expect(algorithmsCss).toMatch(/\.algo-pill\s*\{[^}]*height:\s*fit-content;/);
+
+      // 5. Expand / Collapse toggle & container
+      expect(algorithmsCss).toContain('.algo-category-container');
+      expect(algorithmsCss).toContain('.algo-category-pills.is-collapsed');
+      expect(algorithmsCss).toContain('.algo-category-pills.is-expanded');
+      expect(algorithmsCss).toContain('.algo-pills-toggle-btn');
+
+      // 6. JSX integration
+      expect(algorithmsPanelTsx).toContain('className="algo-category-container"');
+      expect(algorithmsPanelTsx).toContain('isExpanded ? \'is-expanded\' : \'is-collapsed\'');
+      expect(algorithmsPanelTsx).toContain('className="algo-pills-toggle-btn"');
+    });
   });
 });

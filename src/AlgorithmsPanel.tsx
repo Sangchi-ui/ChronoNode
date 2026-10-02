@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, X, BookOpen, Clock, ArrowRight } from 'lucide-react';
+import { Search, X, BookOpen, Clock, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { allAlgorithms, algorithmCategories, type AlgorithmData } from './data/algorithms';
 
 interface AlgorithmsPanelProps {
@@ -10,6 +10,7 @@ interface AlgorithmsPanelProps {
 export function AlgorithmsPanel({ onSelectAlgorithm }: AlgorithmsPanelProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
   const filteredAlgorithms = useMemo(() => {
     return allAlgorithms.filter(algo => {
@@ -54,19 +55,36 @@ export function AlgorithmsPanel({ onSelectAlgorithm }: AlgorithmsPanelProps) {
         </div>
       </div>
 
-      {/* Category Pills */}
-      <div className="algo-category-pills" role="tablist" aria-label="Algorithm categories">
-        {algorithmCategories.map(cat => (
-          <button
-            key={cat}
-            className={`algo-pill ${selectedCategory === cat ? 'active' : ''}`}
-            onClick={() => setSelectedCategory(cat)}
-            role="tab"
-            aria-selected={selectedCategory === cat}
-          >
-            {cat}
-          </button>
-        ))}
+      {/* Category Pills - Wrapping Chip Cloud */}
+      <div className="algo-category-container">
+        <div
+          className={`algo-category-pills ${isExpanded ? 'is-expanded' : 'is-collapsed'}`}
+          role="tablist"
+          aria-label="Algorithm categories"
+        >
+          {algorithmCategories.map(cat => (
+            <button
+              key={cat}
+              className={`algo-pill ${selectedCategory === cat ? 'active' : ''}`}
+              onClick={() => setSelectedCategory(cat)}
+              role="tab"
+              aria-selected={selectedCategory === cat}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="algo-pills-toggle-btn"
+          onClick={() => setIsExpanded(prev => !prev)}
+          aria-expanded={isExpanded}
+          aria-label={isExpanded ? 'Collapse categories' : 'Expand all categories'}
+          title={isExpanded ? 'Collapse categories' : 'Show all categories'}
+        >
+          <span>{isExpanded ? 'Collapse' : `Expand (${algorithmCategories.length})`}</span>
+          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
       </div>
 
       {/* Uniform Square Card Grid */}

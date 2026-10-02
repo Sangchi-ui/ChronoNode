@@ -94,14 +94,55 @@
   color: #e2e8f0;
 }
 
-/* Category Filter Pills */
+/* Category Filter Pills - Wrapping Chip Cloud Layout */
+.algo-category-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  position: relative;
+}
+
 .algo-category-pills {
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 12px;
-  scrollbar-width: thin;
-  scrollbar-color: #2b384c transparent;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 4px 0;
+  transition: max-height 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.algo-category-pills.is-collapsed {
+  max-height: 84px; /* roughly 2 rows of chips */
+  overflow: hidden;
+  position: relative;
+}
+
+.algo-category-pills.is-expanded {
+  max-height: 600px;
+  overflow: visible;
+}
+
+.algo-pills-toggle-btn {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #151d28;
+  border: 1px solid #28374b;
+  color: #94a3b8;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.algo-pills-toggle-btn:hover {
+  background: #1f2b3b;
+  color: #f1f5f9;
+  border-color: #3b4d66;
 }
 
 .algo-pill {
@@ -112,9 +153,11 @@
   padding: 6px 14px;
   font-size: 12px;
   font-weight: 500;
-  white-space: nowrap;
   cursor: pointer;
+  height: fit-content;
+  flex-shrink: 0;
   transition: all 0.18s ease;
+  user-select: none;
 }
 
 .algo-pill:hover {
