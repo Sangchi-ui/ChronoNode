@@ -100,106 +100,9 @@ describe('Client-Side Interactive Features', () => {
   });
 
   /* ------------------------------------------------------------------------
-     3. Feature 2: Live Variable Tweaking mid-Execution (Generator State Machines)
+     3. Feature 2: Smart Edge-Case Data Generators
      ------------------------------------------------------------------------ */
-  describe('3. Live Variable Tweaking mid-Execution', () => {
-    interface Checkpoint {
-      step: number;
-      activeIndices: number[];
-      isComparison: boolean;
-      isSwap: boolean;
-      memoryArray: number[];
-      values: number[];
-      isDone?: boolean;
-    }
-
-    // JavaScript Generator Function for bubble sort step-by-step
-    function* bubbleSortGenerator(arr: number[]): Generator<Checkpoint, Checkpoint, void> {
-      let step = 1;
-      const n = arr.length;
-      for (let end = n - 1; end > 0; end--) {
-        for (let j = 0; j < end; j++) {
-          yield {
-            step: step++,
-            activeIndices: [j, j + 1],
-            isComparison: true,
-            isSwap: false,
-            memoryArray: arr,
-            values: [arr[j], arr[j + 1]],
-          };
-
-          if (arr[j] > arr[j + 1]) {
-            const temp = arr[j];
-            arr[j] = arr[j + 1];
-            arr[j + 1] = temp;
-
-            yield {
-              step: step++,
-              activeIndices: [j, j + 1],
-              isComparison: false,
-              isSwap: true,
-              memoryArray: arr,
-              values: [arr[j], arr[j + 1]],
-            };
-          }
-        }
-      }
-      return {
-        step: step++,
-        isDone: true,
-        activeIndices: [],
-        isComparison: false,
-        isSwap: false,
-        memoryArray: arr,
-        values: [],
-      };
-    }
-
-    it('freezes execution at key logic checkpoints using yield keyword', () => {
-      const memory = [5, 2, 8];
-      const gen = bubbleSortGenerator(memory);
-
-      const firstStep = gen.next().value as Checkpoint;
-      expect(firstStep).toBeDefined();
-      expect(firstStep.isComparison).toBe(true);
-      expect(firstStep.activeIndices).toEqual([0, 1]);
-      expect(firstStep.values).toEqual([5, 2]);
-
-      const secondStep = gen.next().value as Checkpoint;
-      expect(secondStep.isSwap).toBe(true);
-      expect(secondStep.memoryArray).toEqual([2, 5, 8]);
-    });
-
-    it('allows in-place mutation of memory slots during a paused checkpoint and resumes correctly with .next()', () => {
-      const memory = [10, 20, 5];
-      const gen = bubbleSortGenerator(memory);
-
-      // Step 1: Comparing 10 and 20 (no swap needed)
-      const step1 = gen.next().value as Checkpoint;
-      expect(step1.values).toEqual([10, 20]);
-
-      // USER PAUSES CHECKPOINT & MUTATES arr[1] in-place from 20 to 2
-      memory[1] = 2; // Simulates user typing '2' into active HTML text input for slot 1
-
-      // Resume execution with .next()
-      // Because arr[0] (10) > arr[1] (now 2), the generator immediately detects the mutation and triggers a swap!
-      const step2 = gen.next().value as Checkpoint;
-      expect(step2.isSwap).toBe(true);
-      expect(step2.activeIndices).toEqual([0, 1]);
-      expect(memory).toEqual([2, 10, 5]);
-
-      // Step 3 will now proceed to compare index 1 (10) with index 2 (5)
-      const step3 = gen.next().value as Checkpoint;
-      expect(step3.isComparison).toBe(true);
-      expect(step3.activeIndices).toEqual([1, 2]);
-      expect(step3.values).toEqual([10, 5]);
-    });
-  });
-
-  /* ------------------------------------------------------------------------
-     4. Feature 3: Smart Edge-Case Data Generators
-     ------------------------------------------------------------------------ */
-  describe('4. Smart Edge-Case Data Generators', () => {
+  describe('3. Smart Edge-Case Data Generators', () => {
     it('generates Worst-Case Array strictly sorted in descending order', () => {
       const worstCase = generateWorstCaseArray(9);
       expect(worstCase).toHaveLength(9);
@@ -242,9 +145,9 @@ describe('Client-Side Interactive Features', () => {
   });
 
   /* ------------------------------------------------------------------------
-     5. Feature 4: Time & Space Complexity "Odometer" Dashboard
+     4. Feature 3: Time & Space Complexity "Odometer" Dashboard
      ------------------------------------------------------------------------ */
-  describe('5. Time & Space Complexity Odometer Dashboard', () => {
+  describe('4. Time & Space Complexity Odometer Dashboard', () => {
     it('accurately increments comparisons, swaps, and tracks peak space in browser memory', () => {
       const mockEvents = [
         {

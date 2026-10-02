@@ -1,14 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Editor from '@monaco-editor/react';
-import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, Code2, GitBranch, Layers, Pause, Play, RotateCcw, SkipBack, SkipForward, Sliders, Sparkles } from 'lucide-react';
+import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, Code2, GitBranch, Layers, Pause, Play, RotateCcw, SkipBack, SkipForward, Sparkles } from 'lucide-react';
 import { tracePython, type TraceEvent } from './trace';
 import { resolveVisualizerRoute, type VisualizerRoute } from './visualizer-routing';
 import { PanZoomCanvas } from './PanZoomCanvas';
 import { AlgorithmsPanel } from './AlgorithmsPanel';
 import { AlgorithmDetailPage } from './AlgorithmDetailPage';
 import { SandboxMode } from './SandboxMode';
-import { LiveVariableTweaker } from './LiveVariableTweaker';
 import { EdgeCaseModal } from './EdgeCaseModal';
 import { ComplexityOdometer } from './ComplexityOdometer';
 import { allAlgorithms, type AlgorithmData } from './data/algorithms';
@@ -635,7 +634,7 @@ function Visual({ event, animate, source }: { event?: TraceEvent; animate: boole
 }
 
 function App() {
-  const [tab, setTab] = useState<'editor' | 'algorithms' | 'sandbox' | 'tweaker'>('editor');
+  const [tab, setTab] = useState<'editor' | 'algorithms' | 'sandbox'>('editor');
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<AlgorithmData | null>(null);
   const [showEdgeModal, setShowEdgeModal] = useState(false);
   const [code, setCode] = useState(initial);
@@ -800,19 +799,6 @@ function App() {
         >
           <Layers size={16}/> Sandbox
         </button>
-        <button
-          className={`ghost ${tab === 'tweaker' && !selectedAlgorithm ? 'active-header-btn' : ''}`}
-          onClick={() => {
-            setSelectedAlgorithm(null);
-            setTab('tweaker');
-            if (window.location.hash.includes('algorithms/')) {
-              window.location.hash = '';
-            }
-          }}
-          aria-label="Live variable tweaker state machine"
-        >
-          <Sliders size={16}/> Live Tweaker
-        </button>
       </div>
     </header>
 
@@ -842,7 +828,6 @@ function App() {
           <button className={`nav ${tab === 'editor' ? 'active' : ''}`} onClick={() => setTab('editor')}><Code2/> Editor</button>
           <button className={`nav ${tab === 'algorithms' ? 'active' : ''}`} onClick={() => setTab('algorithms')}><GitBranch/> Algorithms</button>
           <button className={`nav ${tab === 'sandbox' ? 'active' : ''}`} onClick={() => setTab('sandbox')}><Layers/> Sandbox Mode</button>
-          <button className={`nav ${tab === 'tweaker' ? 'active' : ''}`} onClick={() => setTab('tweaker')}><Sliders/> Live Tweaker</button>
           <div className="side-title samples">SAMPLES</div>
           {Object.keys(samples).map(name => (
             <button
@@ -885,8 +870,6 @@ function App() {
               setTab('editor');
             }}
           />
-        ) : tab === 'tweaker' ? (
-          <LiveVariableTweaker />
         ) : (
           <section className="workspace">
             <div className="toolbar">
