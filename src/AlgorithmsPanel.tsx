@@ -74,29 +74,34 @@ export function AlgorithmsPanel({ onSelectAlgorithm }: AlgorithmsPanelProps) {
         ))}
       </div>
 
-      {/* Uniform Square Card Grid */}
-      <div className="algo-grid w-full" role="grid">
+      {/* 5-Column Responsive Card Grid (Wide Rectangles) */}
+      <div
+        className="algo-grid w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6"
+        role="grid"
+      >
         {filteredAlgorithms.map(algo => (
           <button
             key={algo.id}
-            className="algo-card"
+            className="algo-card p-6 min-h-[210px] flex flex-col justify-between"
             onClick={() => onSelectAlgorithm(algo)}
             aria-label={`Open learning page for ${algo.name}`}
           >
-            <div className="algo-card-inner">
-              <div className="algo-card-top">
+            <div className="algo-card-inner flex flex-col justify-between h-full w-full">
+              <div className="algo-card-top flex justify-between items-center w-full">
                 <span className="algo-card-category">{algo.category.replace(' Algorithms', '')}</span>
                 <span className="algo-card-chip">{algo.complexity.time}</span>
               </div>
-              <div className="algo-card-graphic-container">
+              <div className="algo-card-graphic-container my-auto py-2 flex items-center justify-center w-full">
                 <MiniGraphic category={algo.category} />
               </div>
-              <h3 className="algo-card-title">{algo.name}</h3>
-              <div className="algo-card-bottom">
-                <span className="algo-card-space">Space {algo.complexity.space}</span>
-                <span className="algo-card-prompt">
-                  Learn <ArrowRight size={11} style={{ display: 'inline', marginLeft: 2 }} />
-                </span>
+              <div className="algo-card-bottom-group mt-2">
+                <h3 className="algo-card-title">{algo.name}</h3>
+                <div className="algo-card-bottom flex justify-between items-center w-full">
+                  <span className="algo-card-space">Space {algo.complexity.space}</span>
+                  <span className="algo-card-prompt flex items-center gap-1">
+                    Learn <ArrowRight size={13} style={{ display: 'inline', marginLeft: 2 }} />
+                  </span>
+                </div>
               </div>
             </div>
           </button>

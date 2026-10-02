@@ -256,4 +256,36 @@ describe('Algorithms Registry', () => {
       expect(algorithmsCss).toContain('rgba(196, 243, 74');
     });
   });
+
+  describe('5-Column Responsive Grid Layout & Wide Rectangular Cards', () => {
+    it('implements responsive 5-column grid with gap-6', () => {
+      // 1. Breakpoint classes in JSX
+      expect(algorithmsPanelTsx).toContain('grid-cols-1');
+      expect(algorithmsPanelTsx).toContain('sm:grid-cols-2');
+      expect(algorithmsPanelTsx).toContain('lg:grid-cols-3');
+      expect(algorithmsPanelTsx).toContain('xl:grid-cols-4');
+      expect(algorithmsPanelTsx).toContain('2xl:grid-cols-5');
+      expect(algorithmsPanelTsx).toContain('gap-6');
+
+      // 2. CSS Media Queries for 5 columns on large screens
+      expect(algorithmsCss).toMatch(/@media\s*\(min-width:\s*1536px\)\s*\{\s*\.algo-grid\s*\{[^}]*grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\);/);
+      expect(algorithmsCss).toMatch(/\.algo-grid\s*\{[^}]*gap:\s*24px;/);
+    });
+
+    it('removes square aspect-ratio and enforces wide rectangular proportions with generous padding', () => {
+      // 1. No aspect-square or aspect-ratio: 1 / 1
+      expect(algorithmsCss).not.toMatch(/\.algo-card\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/);
+      expect(algorithmsPanelTsx).not.toContain('aspect-square');
+
+      // 2. Minimum height and generous padding
+      expect(algorithmsCss).toMatch(/\.algo-card\s*\{[^}]*min-height:\s*210px;/);
+      expect(algorithmsCss).toMatch(/\.algo-card\s*\{[^}]*padding:\s*24px\s+26px;/);
+      expect(algorithmsPanelTsx).toContain('p-6');
+      expect(algorithmsPanelTsx).toContain('min-h-[210px]');
+
+      // 3. Inner layout space distribution
+      expect(algorithmsPanelTsx).toContain('flex flex-col justify-between h-full');
+      expect(algorithmsCss).toMatch(/\.algo-card-inner\s*\{[^}]*justify-content:\s*space-between;/);
+    });
+  });
 });

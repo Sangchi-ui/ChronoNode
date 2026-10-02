@@ -133,39 +133,67 @@
   box-shadow: 0 0 10px rgba(196, 243, 74, 0.15);
 }
 
-/* Uniform Square Card Grid */
+/* Responsive 5-Column Grid Layout (Wide Rectangles) */
 .algo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-  margin-top: 14px;
-  padding-bottom: 30px;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 24px;
+  margin-top: 18px;
+  padding-bottom: 40px;
+  width: 100%;
 }
 
+@media (min-width: 640px) {
+  .algo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .algo-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .algo-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1536px) {
+  .algo-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Wide Rectangular Algorithm Cards */
 .algo-card {
-  aspect-ratio: 1 / 1;
   width: 100%;
-  background: rgba(20, 27, 38, 0.7);
-  border: 1px solid #273447;
-  border-radius: 12px;
-  padding: 16px;
+  min-height: 210px;
+  background: radial-gradient(ellipse at 50% -10%, rgba(26, 44, 40, 0.5) 0%, rgba(13, 20, 28, 0.92) 80%);
+  border: 1px solid rgba(74, 222, 128, 0.22);
+  border-radius: 18px;
+  padding: 24px 26px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   text-align: left;
   cursor: pointer;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   position: relative;
   overflow: hidden;
+  box-shadow: 0 6px 24px -2px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(74, 222, 128, 0.28);
   transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
 }
 
 .algo-card:hover {
   transform: translateY(-4px);
-  border-color: #c4f34a;
-  background: rgba(25, 34, 48, 0.9);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4), 0 0 16px rgba(196, 243, 74, 0.15);
+  border-color: rgba(74, 222, 128, 0.6);
+  background: radial-gradient(ellipse at 50% -10%, rgba(32, 56, 50, 0.6) 0%, rgba(15, 24, 34, 0.96) 80%);
+  box-shadow: 0 18px 38px -4px rgba(0, 0, 0, 0.7), 0 0 24px rgba(74, 222, 128, 0.2), inset 0 1px 0 rgba(74, 222, 128, 0.5);
 }
 
 .algo-card:active {
@@ -174,6 +202,7 @@
 
 .algo-card-inner {
   height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -182,183 +211,207 @@
 .algo-card-top {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 6px;
+  align-items: center;
+  width: 100%;
 }
 
 .algo-card-category {
-  font: 500 10px 'DM Mono', monospace;
-  color: #7d8ea5;
+  font-size: 11px;
+  font-weight: 600;
+  color: #627d78;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.12em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .algo-card-chip {
-  background: #101620;
-  border: 1px solid #2a374b;
-  color: #c4f34a;
-  border-radius: 4px;
-  padding: 2px 5px;
-  font: 600 10px 'DM Mono', monospace;
+  background: rgba(14, 28, 24, 0.7);
+  border: 1.5px solid #34d399;
+  color: #4ade80;
+  border-radius: 9999px;
+  padding: 3px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
   white-space: nowrap;
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.18);
+  transition: all 0.2s ease;
 }
 
-/* Card Graphic Container & Mini Graphic Shapes */
+.algo-card:hover .algo-card-chip {
+  border-color: #4ade80;
+  box-shadow: 0 0 14px rgba(74, 222, 128, 0.4);
+}
+
+/* Card Center Graphic Container */
 .algo-card-graphic-container {
   width: 100%;
-  margin: 6px 0;
+  margin: 12px 0 10px;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 56px;
 }
 
 .mini-graphic {
   width: 100%;
-  height: 48px;
-  background: rgba(15, 23, 42, 0.45);
-  border: 1px solid rgba(51, 65, 85, 0.5);
-  border-radius: 8px;
+  height: 56px;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   position: relative;
-  overflow: hidden;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  overflow: visible;
   transition: all 0.25s ease;
 }
 
-.algo-card:hover .mini-graphic {
-  border-color: rgba(196, 243, 74, 0.4);
-  background: rgba(15, 23, 42, 0.65);
-}
-
-/* 1. Searching Graphic */
+/* 1. Searching Graphic: 7 blocks with glowing center cube */
 .searching-graphic .graphic-block {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  background: rgba(30, 41, 59, 0.8);
-  border: 1px solid rgba(51, 65, 85, 0.7);
+  width: 18px;
+  height: 14px;
+  border-radius: 3px;
+  background: rgba(22, 38, 36, 0.55);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  box-shadow: inset 0 1px 0 rgba(74, 222, 128, 0.2);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .searching-graphic .graphic-block.is-target {
-  width: 12px;
-  height: 12px;
-  background: #c4f34a;
-  border-color: #d9f99d;
-  box-shadow: 0 0 12px rgba(196, 243, 74, 0.85);
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  border: 1px solid #86efac;
+  box-shadow: 0 0 24px rgba(74, 222, 128, 0.9), 0 0 45px rgba(74, 222, 128, 0.35);
   transform: scale(1.1);
 }
 
 .algo-card:hover .searching-graphic .graphic-block.is-target {
-  box-shadow: 0 0 16px rgba(196, 243, 74, 1);
+  box-shadow: 0 0 32px rgba(74, 222, 128, 1), 0 0 55px rgba(74, 222, 128, 0.5);
   transform: scale(1.18);
 }
 
 /* 2. Sorting Graphic */
 .sorting-graphic .graphic-bar {
-  width: 8px;
-  border-top-left-radius: 2px;
-  border-top-right-radius: 2px;
-  background: rgba(30, 41, 59, 0.8);
-  border-top: 1px solid rgba(51, 65, 85, 0.7);
-  border-left: 1px solid rgba(51, 65, 85, 0.7);
-  border-right: 1px solid rgba(51, 65, 85, 0.7);
+  width: 10px;
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
+  background: rgba(22, 38, 36, 0.6);
+  border-top: 1px solid rgba(74, 222, 128, 0.3);
+  border-left: 1px solid rgba(74, 222, 128, 0.3);
+  border-right: 1px solid rgba(74, 222, 128, 0.3);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.sorting-graphic .bar-1 { height: 10px; }
-.sorting-graphic .bar-2 { height: 16px; }
+.sorting-graphic .bar-1 { height: 12px; }
+.sorting-graphic .bar-2 { height: 20px; }
 .sorting-graphic .bar-3.is-pivot {
-  height: 28px;
-  background: #c4f34a;
-  border-color: #d9f99d;
-  box-shadow: 0 0 12px rgba(196, 243, 74, 0.85);
+  height: 34px;
+  background: linear-gradient(180deg, #86efac 0%, #22c55e 100%);
+  border-color: #86efac;
+  box-shadow: 0 0 16px rgba(74, 222, 128, 0.9);
 }
 .sorting-graphic .bar-4.is-highlight {
-  height: 20px;
-  background: #a3e635;
-  border-color: #d9f99d;
-  box-shadow: 0 0 8px rgba(196, 243, 74, 0.65);
+  height: 26px;
+  background: rgba(74, 222, 128, 0.8);
+  border-color: #86efac;
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.65);
 }
-.sorting-graphic .bar-5 { height: 14px; }
+.sorting-graphic .bar-5 { height: 16px; }
 
 .algo-card:hover .sorting-graphic .bar-3.is-pivot {
-  box-shadow: 0 0 18px rgba(196, 243, 74, 1);
-  transform: scaleY(1.05);
+  box-shadow: 0 0 24px rgba(74, 222, 128, 1);
+  transform: scaleY(1.06);
 }
 
 /* 3. Tree & Graph Graphic */
-.tree-graph-graphic .graphic-node {
-  border-radius: 9999px;
+.tree-graph-graphic .center-glowing-cube {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  border: 1px solid #86efac;
+  box-shadow: 0 0 24px rgba(74, 222, 128, 0.9), 0 0 40px rgba(74, 222, 128, 0.35);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+.tree-graph-graphic .outer-node {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  background: rgba(22, 38, 36, 0.6);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  box-shadow: inset 0 1px 0 rgba(74, 222, 128, 0.2);
+}
+
 .tree-graph-graphic .graphic-node.is-root {
-  width: 11px;
-  height: 11px;
-  background: #c4f34a;
-  border: 1px solid #d9f99d;
-  box-shadow: 0 0 10px rgba(196, 243, 74, 0.85);
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #4ade80;
+  border: 1.5px solid #86efac;
+  box-shadow: 0 0 16px rgba(74, 222, 128, 0.9);
 }
 
 .tree-graph-graphic .graphic-node.child-node {
-  width: 10px;
-  height: 10px;
-  background: rgba(30, 41, 59, 0.9);
-  border: 1px solid rgba(71, 85, 105, 0.8);
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: rgba(22, 38, 36, 0.85);
+  border: 1px solid rgba(74, 222, 128, 0.35);
 }
 
 .tree-graph-graphic .graphic-node.is-active-child {
-  background: rgba(196, 243, 74, 0.8);
-  border-color: #d9f99d;
-  box-shadow: 0 0 8px rgba(196, 243, 74, 0.6);
+  background: rgba(74, 222, 128, 0.85);
+  border-color: #86efac;
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.7);
+}
+
+.algo-card:hover .tree-graph-graphic .center-glowing-cube {
+  box-shadow: 0 0 32px rgba(74, 222, 128, 1), 0 0 50px rgba(74, 222, 128, 0.5);
+  transform: scale(1.15);
 }
 
 /* 4. DP & Matrix Graphic */
 .dp-matrix-graphic .dp-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 3px;
+  gap: 4px;
   padding: 4px;
   border-radius: 4px;
-  background: rgba(2, 6, 23, 0.5);
-  border: 1px solid rgba(51, 65, 85, 0.6);
+  background: rgba(14, 24, 22, 0.55);
+  border: 1px solid rgba(74, 222, 128, 0.25);
 }
 
 .dp-matrix-graphic .dp-cell {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 2px;
-  background: rgba(30, 41, 59, 0.7);
-  border: 1px solid rgba(51, 65, 85, 0.5);
+  background: rgba(22, 38, 36, 0.65);
+  border: 1px solid rgba(74, 222, 128, 0.2);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .dp-matrix-graphic .dp-cell.is-computed {
-  background: rgba(196, 243, 74, 0.45);
-  border-color: rgba(196, 243, 74, 0.8);
-  box-shadow: 0 0 6px rgba(196, 243, 74, 0.35);
+  background: rgba(74, 222, 128, 0.45);
+  border-color: rgba(74, 222, 128, 0.7);
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
 }
 
 .dp-matrix-graphic .dp-cell.is-optimal {
-  background: #c4f34a;
-  border-color: #d9f99d;
-  box-shadow: 0 0 10px rgba(196, 243, 74, 0.9);
-  transform: scale(1.1);
+  background: #4ade80;
+  border-color: #86efac;
+  box-shadow: 0 0 14px rgba(74, 222, 128, 0.95);
+  transform: scale(1.12);
 }
 
 /* 5. Default / Mathematical Graphic */
 .math-default-graphic .overlapping-square {
-  width: 18px;
-  height: 18px;
-  border-radius: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
   position: absolute;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -366,58 +419,69 @@
 .math-default-graphic .square-back {
   top: 0;
   left: 0;
-  border: 1.5px solid rgba(100, 116, 139, 0.7);
-  background: rgba(30, 41, 59, 0.3);
+  border: 1.5px solid rgba(74, 222, 128, 0.35);
+  background: rgba(22, 38, 36, 0.4);
 }
 
 .math-default-graphic .square-front {
   bottom: 0;
   right: 0;
-  border: 1.5px solid #c4f34a;
-  background: rgba(15, 23, 42, 0.45);
-  box-shadow: 0 0 10px rgba(196, 243, 74, 0.75);
+  border: 1.5px solid #4ade80;
+  background: rgba(14, 28, 24, 0.65);
+  box-shadow: 0 0 14px rgba(74, 222, 128, 0.8);
 }
 
 .algo-card:hover .math-default-graphic .square-front {
-  box-shadow: 0 0 16px rgba(196, 243, 74, 0.95);
-  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(74, 222, 128, 1);
+  transform: scale(1.08);
+}
+
+/* Card Title & Bottom Row */
+.algo-card-bottom-group {
+  margin-top: auto;
 }
 
 .algo-card-title {
-  margin: 6px 0;
-  font-size: 14px;
+  margin: 6px 0 6px;
+  font-size: 22px;
   font-weight: 700;
-  color: #f1f5f9;
-  line-height: 1.3;
+  color: #ffffff;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  text-align: left;
 }
 
 .algo-card-bottom {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-top: 1px solid #222d3e;
-  padding-top: 8px;
-  font: 11px 'DM Mono', monospace;
+  padding-top: 4px;
+  border-top: none;
 }
 
 .algo-card-space {
   color: #64748b;
-  font-size: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
 }
 
 .algo-card-prompt {
-  color: #c4f34a;
-  font-size: 11px;
+  color: #4ade80;
+  font-size: 14px;
   font-weight: 600;
-  transition: transform 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: transform 0.18s ease, color 0.18s ease;
 }
 
 .algo-card:hover .algo-card-prompt {
   transform: translateX(3px);
+  color: #86efac;
 }
 
 /* Empty State */
