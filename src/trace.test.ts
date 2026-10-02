@@ -4,9 +4,10 @@ import { buildTraceProgram, detectStructure, loadPython } from './trace';
 
 type RawEvent = {
   step: number; line: number; statement: string; eventType: string; operation: string;
-  function: string;
+  function: string; dataStructure: string;
   variables: Record<string, unknown>; arguments: Record<string, unknown>;
   returnValue?: unknown; beforeState: Record<string, unknown>; afterState: Record<string, unknown>;
+  lineComplexity: { time: string; timeDetails: string; space: string; spaceDetails: string };
   focus: { indices?: number[]; values?: unknown[]; result?: string; range?: number[]; cells?: number[][]; readCells?: number[][]; writeCells?: number[][]; direction?: string };
   callStack: Array<{ name: string; line: number; arguments: Record<string, unknown> }>;
   output?: string; explanation: string;
@@ -15,12 +16,18 @@ type RawEvent = {
 let python: PyodideInterface;
 beforeAll(async () => { python = await loadPyodide(); }, 30_000);
 
-async function run(code: string, eventLimit = 12_000): Promise<RawEvent[]> {
-  const result = await python.runPythonAsync(buildTraceProgram(code, eventLimit));
+async function run(code: string, eventLimit = 1000, executionTimeoutMs = 5000): Promise<RawEvent[]> {
+  const result = await python.runPythonAsync(buildTraceProgram(code, eventLimit, executionTimeoutMs));
   return JSON.parse(String(result)) as RawEvent[];
 }
 
 describe('Python execution trace', () => {
+  it('defaults to the production step and execution-time ceilings', () => {
+    const program = buildTraceProgram('pass');
+    expect(program).toContain('event_limit = 1000');
+    expect(program).toContain('EXECUTION_TIMEOUT_MS = 5000');
+  });
+
   it('loads the browser Python runtime only once for repeated runs', async () => {
     const runtime = { runPythonAsync: vi.fn(async () => null) };
     const loadPyodide = vi.fn(async () => runtime);
@@ -69,6 +76,80 @@ describe('Python execution trace', () => {
     expect(swap?.variables.values).toEqual([1, 3]);
   });
 
+  it('reports runtime K and allocation for slices, reductions, and concatenation', async () => {
+    const events = await run(`values = [1, 2, 3, 4, 5]\nsample = values[1:4]\ntotal = sum(values)\njoined = "a" + "bc"`);
+    const slice = events.find(event => event.statement === 'sample = values[1:4]');
+    expect(slice?.lineComplexity).toEqual({ time: 'O(K)', timeDetails: 'K = 3 elements copied by slicing', space: 'O(K)', spaceDetails: 'Allocated 3 new elements' });
+    const sum = events.find(event => event.statement === 'total = sum(values)');
+    expect(sum?.lineComplexity.time).toBe('O(K)');
+    expect(sum?.lineComplexity.timeDetails).toContain('5 elements scanned');
+    expect(sum?.lineComplexity.space).toBe('O(1)');
+    const concatenate = events.find(event => event.statement === 'joined = "a" + "bc"');
+    expect(concatenate?.lineComplexity.time).toBe('O(K)');
+    expect(concatenate?.lineComplexity.space).toBe('O(K)');
+  });
+
+  it('counts allocation when a function returns a sliced collection', async () => {
+    const events = await run(`def copy_range(values):\n    return values[1:4]\nanswer = copy_range([1, 2, 3, 4, 5])`);
+    const returnedSlice = events.find(event => event.eventType === 'return' && event.statement === 'return values[1:4]');
+    expect(returnedSlice?.lineComplexity).toEqual({ time: 'O(K)', timeDetails: 'K = 3 elements copied by slicing', space: 'O(K)', spaceDetails: 'Allocated 3 new elements' });
+  });
+
+  it('reports sort, append, pop, and user-call stack costs', async () => {
+    const events = await run(`def add_item(items, value):\n    items.sort()\n    items.append(value)\n    return items.pop()\nvalues = [3, 1, 2]\nanswer = add_item(values, 4)`);
+    const sort = events.find(event => event.statement === 'items.sort()');
+    expect(sort?.lineComplexity.time).toBe('O(K log K)');
+    expect(sort?.lineComplexity.space).toBe('O(1)');
+    const push = events.find(event => event.statement === 'items.append(value)');
+    expect(push?.lineComplexity.time).toBe('O(1)');
+    const call = events.find(event => event.eventType === 'call' && event.function === 'add_item');
+    expect(call?.lineComplexity).toEqual({ time: 'O(1)', timeDetails: 'One user-function invocation', space: 'O(1)', spaceDetails: 'Added one user-call stack frame' });
+    expect(events.every(event => event.lineComplexity && event.lineComplexity.time && event.lineComplexity.space)).toBe(true);
+  });
+
+  it('uses the safe constant fallback instead of displaying an unknown complexity token', async () => {
+    const events = await run(`def passthrough(items):\n    return items\nvalues = [1, 2, 3]\nresult = passthrough(values)`);
+    const assignment = events.find(event => event.statement === 'result = passthrough(values)' && event.operation === 'assign');
+    expect(assignment?.lineComplexity.time).toBe('O(1)');
+    expect(assignment?.lineComplexity.space).toBe('O(1)');
+    expect(assignment?.lineComplexity.timeDetails).toContain('Conservative fallback');
+    expect(JSON.stringify(events)).not.toContain('O(?)');
+  });
+
+  it('tracks active string indices and slice characters during string-search comparisons', async () => {
+    const events = await run(`text = "banana"\npattern = "ana"\nindex = 1\nif text[index:index + len(pattern)] == pattern:\n    found = index`);
+    const comparison = events.find(event => event.eventType === 'compare');
+    expect(comparison?.focus.indices).toEqual(expect.arrayContaining([1, 2, 3]));
+    expect(comparison?.focus.values).toEqual(expect.arrayContaining(['n', 'a']));
+    const advance = await run(`text = "banana"\nindex = 0\nindex += 1`);
+    expect(advance.find(event => event.statement === 'index += 1')?.focus.indices).toContain(1);
+  });
+
+  it('uses the pre-mutation list size for front insert and pop costs', async () => {
+    const events = await run(`items = [1, 2, 3, 4, 5]\nitems.insert(0, 0)\nitems.pop(0)`);
+    const insert = events.find(event => event.statement === 'items.insert(0, 0)');
+    const pop = events.find(event => event.statement === 'items.pop(0)');
+    expect(insert?.lineComplexity.time).toBe('O(K)');
+    expect(insert?.lineComplexity.timeDetails).toContain('K = 5');
+    expect(insert?.lineComplexity.space).toBe('O(1)');
+    expect(pop?.lineComplexity.time).toBe('O(K)');
+    expect(pop?.lineComplexity.timeDetails).toContain('K = 6');
+    expect(pop?.lineComplexity.space).toBe('O(1)');
+  });
+
+  it('estimates generator scans and heap work from runtime collection sizes', async () => {
+    const events = await run(`values = [1, 2, 3, 4]\ntotal = sum(value for value in values)\nimport heapq\nheap = [7, 2, 5]\nheapq.heapify(heap)\nheapq.heappush(heap, 1)`);
+    const sum = events.find(event => event.statement === 'total = sum(value for value in values)');
+    expect(sum?.lineComplexity.time).toBe('O(K)');
+    expect(sum?.lineComplexity.timeDetails).toContain('4 elements scanned');
+    const heapify = events.find(event => event.statement === 'heapq.heapify(heap)');
+    expect(heapify?.lineComplexity.time).toBe('O(K)');
+    expect(heapify?.lineComplexity.space).toBe('O(1)');
+    const push = events.find(event => event.statement === 'heapq.heappush(heap, 1)');
+    expect(push?.lineComplexity.time).toBe('O(log K)');
+    expect(push?.lineComplexity.space).toBe('O(1)');
+  });
+
   it('traces insertion-sort shifts as moves and finishes with the sorted result', async () => {
     const events = await run(`values = [7, 3, 5, 1]\nfor index in range(1, len(values)):\n    current = values[index]\n    position = index\n    while position > 0 and values[position - 1] > current:\n        values[position] = values[position - 1]\n        position -= 1\n    values[position] = current`);
     const moves = events.filter(event => event.operation === 'move');
@@ -92,6 +173,7 @@ describe('Python execution trace', () => {
     expect(enqueued?.afterState.queue).toEqual(['B']);
     expect(discovered?.variables.node).toBe('A');
     expect(discovered?.variables.neighbor).toBe('B');
+    expect(events.every(event => event.dataStructure === 'graph')).toBe(true);
   });
 
   it('records shortest-path relaxations with the graph edge context and new distance map', async () => {
@@ -126,6 +208,21 @@ describe('Python execution trace', () => {
     expect(pushes.map(event => event.afterState.pile)).toEqual([['bottom'], ['bottom', 'top']]);
     expect(pop?.afterState.pile).toEqual(['bottom']);
     expect(pop?.afterState.item).toBe('top');
+    expect(detectStructure({ statement: pop?.statement || '', state: pop?.afterState || {}, callStack: pop?.callStack || [] }, `@visualize stack pile\npile = []\npile.append("bottom")\npile.pop()`)).toBe('stack');
+  });
+
+  it('recognizes a custom-named stack during iterative BST inorder traversal with node objects', async () => {
+    const code = `class Node:\n    def __init__(self, value):\n        self.value = value\n        self.left = None\n        self.right = None\nroot = Node(2)\nroot.left = Node(1)\nroot.right = Node(3)\npending = []\ncurrent = root\nresult = []\nwhile current or pending:\n    while current:\n        pending.append(current)\n        current = current.left\n    current = pending.pop()\n    result.append(current.value)\n    current = current.right`;
+    const events = await run(code);
+    const stackEvent = events.find(event => event.operation === 'push');
+    expect(stackEvent).toBeDefined();
+    expect(detectStructure({ statement: stackEvent!.statement, state: stackEvent!.afterState, callStack: stackEvent!.callStack }, code)).toBe('tree');
+    expect(stackEvent?.dataStructure).toBe('tree');
+    const stackOperations = events.filter(event => ['push', 'pop'].includes(event.operation));
+    expect(stackOperations.map(event => event.operation)).toEqual(['push', 'push', 'pop', 'pop', 'push', 'pop']);
+    expect(stackEvent?.afterState.pending).toEqual([expect.objectContaining({ __type__: 'Node', value: 2 })]);
+    expect(stackOperations.at(-1)?.afterState.pending).toEqual([]);
+    expect(events.every(event => event.dataStructure === 'tree')).toBe(true);
   });
 
   it('distinguishes indexed moves, writes, mapping inserts, updates, and deletes', async () => {
@@ -175,6 +272,33 @@ describe('Python execution trace', () => {
     expect(current?.__id__).toBe(next?.__id__);
   });
 
+  it('serializes deeply nested custom objects even when repr raises', async () => {
+    const events = await run(`class Node:\n    def __init__(self, value, child=None):\n        self.value = value\n        self.child = child\n    def __repr__(self):\n        raise RuntimeError("repr unavailable")\nroot = None\nfor value in range(8):\n    root = Node(value, root)\nroot.child.child.child.child.child.child.child.child = root\nmetrics = {"nan": float("nan"), "infinity": float("inf")}\nanswer = root.value`);
+    expect(events.at(-1)?.eventType).toBe('complete');
+    expect(events.some(event => event.afterState.root && JSON.stringify(event.afterState.root).includes('<Node>'))).toBe(true);
+    expect(events.some(event => (event.afterState.root as Record<string, unknown> | undefined)?.child)).toBe(true);
+    expect(events.some(event => JSON.stringify(event.afterState.metrics) === '{"nan":"nan","infinity":"inf"}')).toBe(true);
+    expect(JSON.stringify(events)).not.toContain('repr unavailable');
+  });
+
+  it('bounds high-branching snapshots and keeps the trace JSON parseable', async () => {
+    const events = await run(`payload = {str(index): list(range(100)) for index in range(80)}\nanswer = len(payload)`);
+    expect(events.at(-1)?.eventType).toBe('complete');
+    expect(JSON.stringify(events)).toContain('<state truncated>');
+    expect(events.some(event => event.statement === 'answer = len(payload)' && event.afterState.answer === 80)).toBe(true);
+  });
+
+  it('keeps bitwise, set, mapping and multidimensional updates as generic atomic events', async () => {
+    const events = await run(`mask = 10\nmask ^= 3\nmask |= 16\ntable = [[0, 0], [0, 0]]\nrow, col = 1, 0\ntable[row][col] = mask\nseen = set()\nseen.add(mask)\ncounts = {}\ncounts[mask] = 1\ncounts[mask] += 1`);
+    expect(events.filter(event => event.statement === 'mask ^= 3' || event.statement === 'mask |= 16').map(event => event.operation)).toEqual(['assign', 'assign']);
+    const tableWrites = events.filter(event => event.statement === 'table[row][col] = mask');
+    expect(tableWrites).toHaveLength(1);
+    expect(tableWrites[0].afterState.table).toEqual([[0, 0], [25, 0]]);
+    expect(events.some(event => event.statement === 'seen.add(mask)' && (event.afterState.seen as unknown[] | undefined)?.includes(25))).toBe(true);
+    expect(events.some(event => event.statement === 'counts[mask] = 1' && (event.afterState.counts as Record<string, unknown> | undefined)?.['25'] === 1)).toBe(true);
+    expect(events.some(event => event.statement === 'counts[mask] += 1' && (event.afterState.counts as Record<string, unknown> | undefined)?.['25'] === 2)).toBe(true);
+  });
+
   it('points syntax errors with a pasted literal newline escape back to the editor line', async () => {
     const badSource = String.raw`print(json.dumps(events))\njson.dumps(events)`;
     const events = await run(badSource);
@@ -183,12 +307,28 @@ describe('Python execution trace', () => {
     expect(error?.line).toBe(1);
     expect(error?.statement).toBe(badSource);
     expect(error?.explanation).toContain('Replace it with an actual line break');
+    expect(error?.lineComplexity).toBeDefined();
   });
 
   it('stops a non-terminating loop at the event limit and marks it as an error', async () => {
     const events = await run('while True:\n    pass', 60);
+    expect(events.length).toBeLessThanOrEqual(60);
     expect(events.at(-1)?.eventType).toBe('error');
     expect(events.at(-1)?.explanation).toContain('60 meaningful events');
+  });
+
+  it('stops execution at the configured wall-clock deadline', async () => {
+    const events = await run('while True:\n    pass', 1000, 25);
+    expect(events.length).toBeLessThanOrEqual(1000);
+    expect(events.at(-1)?.eventType).toBe('error');
+    expect(events.at(-1)?.explanation).toContain('timed out after 0.025 seconds');
+  });
+
+  it('stops runaway recursion with a valid terminal error event', async () => {
+    const events = await run(`def descend(depth):\n    return descend(depth + 1)\ndescend(0)`);
+    expect(events.at(-1)?.eventType).toBe('error');
+    expect(events.at(-1)?.explanation).toContain('128 nested user calls');
+    expect(events.every((event, index) => event.step === index + 1)).toBe(true);
   });
 
   it('replays the same program in a deterministic event order', async () => {
@@ -197,5 +337,38 @@ describe('Python execution trace', () => {
     const second = await run(code);
     const sequence = (events: RawEvent[]) => events.map(({ step, line, eventType, operation, beforeState, afterState }) => ({ step, line, eventType, operation, beforeState, afterState }));
     expect(sequence(first)).toEqual(sequence(second));
+  });
+
+  it('filters non-algorithmic sorting trace noise without changing the event schema', async () => {
+    const events = await run(`def bubble_sort(values):\n    for end in range(len(values) - 1, 0, -1):\n        for index in range(end):\n            if values[index] > values[index + 1]:\n                values[index], values[index + 1] = values[index + 1], values[index]\nvalues = [5, 1, 4, 2, 8]\nbubble_sort(values)\nprint(values)`);
+    expect(events.length).toBe(45);
+    expect(events[0].eventType).toBe('call');
+    expect(events[0].function).toBe('bubble_sort');
+    expect(events.some(event => event.eventType === 'line' || ['read', 'lookup'].includes(event.operation))).toBe(false);
+    expect(events.some(event => /^(from |import |def |class )/.test(event.statement.trim()))).toBe(false);
+    expect(events.some(event => event.eventType === 'call' && ['len', 'range', 'print'].includes(event.function))).toBe(false);
+    expect(events.some(event => event.operation === 'swap')).toBe(true);
+    expect(events.at(-1)?.eventType).toBe('complete');
+    expect(Object.keys(events[0])).toEqual(expect.arrayContaining(['step', 'eventType', 'line', 'beforeState', 'afterState', 'variables', 'focus']));
+  });
+
+  it('treats comprehensions as single assignments and omits implicit None returns', async () => {
+    const events = await run(`from math import floor\ndef summarize(values):\n    doubled = [value * 2 for value in values]\n    total = sum(value for value in doubled)\n    return total\ndef setup_only():\n    pass\nanswer = summarize([1, 2, 3])\nsetup_only()`);
+    expect(events[0].eventType).toBe('call');
+    expect(events[0].function).toBe('summarize');
+    const doubled = events.find(event => event.statement.startsWith('doubled ='));
+    expect(events.filter(event => event.statement.startsWith('doubled =')).length).toBe(1);
+    expect(doubled?.variables.value).toBeUndefined();
+    expect(events.some(event => ['<listcomp>', '<dictcomp>', '<setcomp>', '<genexpr>'].includes(event.function))).toBe(false);
+    expect(events.some(event => event.statement.startsWith('from math import'))).toBe(false);
+    expect(events.some(event => event.eventType === 'return' && event.function === 'summarize' && event.returnValue === 12)).toBe(true);
+    expect(events.some(event => event.eventType === 'return' && event.function === 'setup_only')).toBe(false);
+  });
+
+  it('omits imports and uncalled function definitions from top-level traces', async () => {
+    const events = await run(`from math import floor\ndef unused(value):\n    return floor(value)\nvalues = [3, 1]`);
+    expect(events[0].statement).toBe('values = [3, 1]');
+    expect(events.some(event => /^(from |import |def |class )/.test(event.statement.trim()))).toBe(false);
+    expect(events.some(event => event.statement === 'values = [3, 1]' && event.operation === 'assign')).toBe(true);
   });
 });

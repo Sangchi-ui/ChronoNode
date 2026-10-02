@@ -37,7 +37,7 @@ export class TraceWorkerClient {
   constructor(
     private readonly createWorker: () => TraceWorker,
     private readonly loadTimeoutMs = 120_000,
-    private readonly executionTimeoutMs = 15_000,
+    private readonly executionTimeoutMs = 5_000,
   ) {}
 
   execute(program: string, onStatus?: (status: TraceExecutionStatus) => void): Promise<string> {

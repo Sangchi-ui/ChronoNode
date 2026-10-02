@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import Editor from '@monaco-editor/react';
 import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, Code2, GitBranch, Layers, Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
 import { tracePython, type TraceEvent } from './trace';
+import { resolveVisualizerRoute, type VisualizerRoute } from './visualizer-routing';
+import { PanZoomCanvas } from './PanZoomCanvas';
 import './styles.css';
 import './deque.css';
 import './graph.css';
@@ -29,22 +31,57 @@ const samples: Record<string, string> = {
   'Heap': `import heapq\nheap = [7, 2, 8, 1]\nheapq.heapify(heap)\nheapq.heappush(heap, 3)\nsmallest = heapq.heappop(heap)`,
 };
 const initial = samples['Binary search'];
-const pretty = (value: unknown) => typeof value === 'string' ? value : JSON.stringify(value);
+const pretty = (value: unknown): string => {
+  if (typeof value === 'string') return value;
+  if (value === null || typeof value !== 'object') return String(value);
+  if (Array.isArray(value)) return `[${value.slice(0, 6).map(pretty).join(', ')}${value.length > 6 ? ', …' : ''}]`;
+  const record = value as Record<string, unknown>;
+  const payload = record.key ?? record.val ?? record.value ?? record.data;
+  if (payload !== undefined) return `${String(record.__type__ ?? 'Node')}(${pretty(payload)})`;
+  const entries = Object.entries(record).filter(([key]) => !key.startsWith('__'));
+  return `${String(record.__type__ ?? 'Object')} · ${entries.length} field${entries.length === 1 ? '' : 's'}`;
+};
 
-function findArray(state: Record<string, unknown>, structure: string): [string, unknown[]] | undefined {
+function findArray(state: Record<string, unknown>, structure: string, source: string): [string, unknown[]] | undefined {
   const entries = Object.entries(state);
+  const annotationName = source.match(/@visualize\s+[\w-]+\s+(\w+)/i)?.[1];
+  if (annotationName && Array.isArray(state[annotationName])) return [annotationName, state[annotationName] as unknown[]];
+  if (structure === 'stack') {
+    const pushes = new Set(Array.from(source.matchAll(/\b([A-Za-z_]\w*)\s*\.\s*(?:append|push)\s*\(/g), match => match[1]));
+    const pops = new Set(Array.from(source.matchAll(/\b([A-Za-z_]\w*)\s*\.\s*pop\s*\(/g), match => match[1]));
+    const stackName = [...pushes].find(name => pops.has(name) && Array.isArray(state[name]));
+    if (stackName) return [stackName, state[stackName] as unknown[]];
+    const namedStack = entries.find(([name, value]) => Array.isArray(value) && ['stack', 'st'].includes(name.toLowerCase()));
+    if (namedStack) return [namedStack[0], namedStack[1] as unknown[]];
+  }
   const named = entries.find(([name, value]) => Array.isArray(value) && (name === 'values' || name === 'arr' || name === 'array' || name === 'data' || name === 'cost' || name === 'dp'));
   const any = named || entries.find(([, value]) => Array.isArray(value));
   if (!any || structure === 'graph') return undefined;
   return [any[0], any[1] as unknown[]];
 }
 
+function structureItemLabel(value: unknown): string {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return String(value);
+  const record = value as Record<string, unknown>;
+  const nodeValue = record.key ?? record.val ?? record.value ?? record.data;
+  if (nodeValue !== undefined) {
+    const label = typeof record.__type__ === 'string' ? record.__type__ : 'Node';
+    return `${label}(${pretty(nodeValue)})`;
+  }
+  if (typeof record.__type__ === 'string') return record.__type__;
+  return `Object · ${Object.keys(record).filter(key => !key.startsWith('__')).length} fields`;
+}
+
 function findString(state: Record<string, unknown>): [string, string] | undefined {
-  return Object.entries(state).find(([name, value]) => typeof value === 'string' && value.length > 1 && name !== '__name__') as [string, string] | undefined;
+  return Object.entries(state).find(([name, value]) => typeof value === 'string' && value.length > 0 && name !== '__name__') as [string, string] | undefined;
 }
 
 function findObject(state: Record<string, unknown>, field: string): [string, Record<string, unknown>] | undefined {
   return Object.entries(state).find(([, value]) => !!value && typeof value === 'object' && !Array.isArray(value) && field in value) as [string, Record<string, unknown>] | undefined;
+}
+
+function findTypedObject(state: Record<string, unknown>): [string, Record<string, unknown>] | undefined {
+  return Object.entries(state).find(([, value]) => !!value && typeof value === 'object' && !Array.isArray(value) && typeof (value as Record<string, unknown>).__type__ === 'string') as [string, Record<string, unknown>] | undefined;
 }
 
 function ArrayView({ event, value, name, animate }: { event: TraceEvent; value: unknown[]; name: string; animate: boolean }) {
@@ -135,7 +172,24 @@ function GraphView({ event, graph }: { event: TraceEvent; graph: Record<string, 
       const focused = !!next && active === link.from && next === link.to;
       return <g key={`${link.from}-${link.to}-${i}`}><line x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd={!undirected ? focused ? 'url(#active-edge-arrow)' : 'url(#edge-arrow)' : undefined} className={focused ? 'graph-edge active-edge' : 'graph-edge'} /><text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 - 6} className="edge-label">{link.weight !== undefined ? String(link.weight) : ''}</text><title>{link.from}{undirected ? ' — ' : ' → '}{link.to}{link.weight !== undefined ? ` (${String(link.weight)})` : ''}</title></g>;
     })}
-    {points.map(point => { const stateClass = point.name === active ? 'active-node' : visited.has(point.name) ? 'visited-node' : discovered.has(point.name) ? 'discovered-node' : ''; return <g key={point.name}><circle cx={point.x} cy={point.y} r="22" className={`graph-node ${stateClass}`} /><text x={point.x} y={point.y + 5} textAnchor="middle" className="graph-node-label">{point.name}</text></g>; })}
+    {points.map(point => {
+      const stateClass = point.name === active ? 'active-node' : visited.has(point.name) ? 'visited-node' : discovered.has(point.name) ? 'discovered-node' : '';
+      const isYellow = stateClass === 'active-node';
+      return (
+        <g key={point.name}>
+          <circle cx={point.x} cy={point.y} r="22" className={`graph-node ${stateClass}`} />
+          <text
+            x={point.x}
+            y={point.y + 5}
+            textAnchor="middle"
+            className={`graph-node-label ${isYellow ? 'active-node-label' : ''}`}
+            style={{ fill: isYellow ? '#000000' : '#edf3e3' }}
+          >
+            {point.name}
+          </text>
+        </g>
+      );
+    })}
   </svg>;
 }
 
@@ -152,15 +206,89 @@ function StackQueueView({ event, values, structure }: { event: TraceEvent; value
   return <div className={isStack ? 'stack-view' : isDeque ? 'deque-view' : 'queue-view'}>
     {isStack && <div className="top-pointer">TOP ↓</div>}
     {!isStack && <div className="queue-pointers"><span className={mutatingEndOperation && fromLeft ? 'active-end' : ''}>{fromLeft ? '← FRONT' : 'FRONT'}</span><span className={mutatingEndOperation && !fromLeft ? 'active-end' : ''}>{fromLeft ? 'REAR' : 'REAR →'}</span></div>}
-    <div className={isStack ? 'stack-items' : 'queue-items'}>{values.map((v, i) => <div className={`structure-item ${!isStack && (i === 0 || i === values.length - 1) ? 'endpoint' : ''} ${mutatingEndOperation && i === activeIndex ? 'deque-active-end' : ''} ${operation.endsWith('left') && operation.startsWith('enqueue') && i === 0 ? 'deque-arrive-left' : ''} ${operation.endsWith('right') && operation.startsWith('enqueue') && i === values.length - 1 ? 'deque-arrive-right' : ''}`} key={itemKeys[i]}>{String(v)}</div>)}</div>
+    <div className={isStack ? 'stack-items' : 'queue-items'}>{values.map((v, i) => <div className={`structure-item ${!isStack && (i === 0 || i === values.length - 1) ? 'endpoint' : ''} ${mutatingEndOperation && i === activeIndex ? 'deque-active-end' : ''} ${operation.endsWith('left') && operation.startsWith('enqueue') && i === 0 ? 'deque-arrive-left' : ''} ${operation.endsWith('right') && operation.startsWith('enqueue') && i === values.length - 1 ? 'deque-arrive-right' : ''}`} key={itemKeys[i]}>{structureItemLabel(v)}</div>)}</div>
     {isDeque && <small className="deque-caption">{operation.startsWith('enqueue') ? 'Inserted at' : operation.startsWith('dequeue') ? 'Removed from' : 'Double-ended queue'} {mutatingDequeOperation ? fromLeft ? 'front' : 'rear' : ''}</small>}
     {!values.length && <span className="muted">Empty {structure}</span>}
   </div>;
 }
 
-function StringView({ event, name, value }: { event: TraceEvent; name: string; value: string }) {
-  const active = new Set(event.focus.indices || []);
-  return <div className="string-view"><span className="array-label">{name}</span><div className="string-cells">{Array.from(value.slice(0, 120)).map((char, index) => <div className={`string-cell ${active.has(index) ? 'is-compared' : ''}`} key={index}><small>{index}</small><b>{char === ' ' ? '␠' : char}</b></div>)}</div>{value.length > 120 && <span className="muted">Showing first 120 characters</span>}</div>;
+function StringView({ event, name, value, state, animate }: { event: TraceEvent; name: string; value: string; state?: Record<string, unknown>; animate: boolean }) {
+  const activeIndices = new Set(event.focus.indices || []);
+  const comparing = event.eventType === 'compare' || event.operation === 'compare';
+  const currentState = state || event.afterState || event.state || {};
+
+  // Track pointer movements (e.g. index, idx, i, j, start, left, right, position)
+  const pointerNames = ['index', 'idx', 'i', 'j', 'start', 'left', 'right', 'position'];
+  const pointerEntry = Object.entries(event.variables).find(([k, v]) => pointerNames.includes(k) && typeof v === 'number');
+  const pointerIndex = pointerEntry ? (pointerEntry[1] as number) : (typeof currentState.index === 'number' ? (currentState.index as number) : undefined);
+
+  // Track matched pattern
+  const foundAt = typeof event.variables.found_at === 'number' ? (event.variables.found_at as number) : (typeof event.variables.found === 'number' ? (event.variables.found as number) : undefined);
+  const isBranchTaken = event.focus.result === 'taken';
+  const patternValue = typeof currentState.pattern === 'string' ? (currentState.pattern as string) : undefined;
+  const patternLength = patternValue ? patternValue.length : (activeIndices.size > 0 ? activeIndices.size : 1);
+
+  const isMatchFound = foundAt !== undefined || (comparing && isBranchTaken) || event.variables.is_palindrome === true;
+  const matchStart = foundAt !== undefined ? foundAt : (isMatchFound && pointerIndex !== undefined ? pointerIndex : (event.focus.indices?.[0] ?? -1));
+  const matchedIndices = new Set<number>();
+  if (isMatchFound && matchStart >= 0) {
+    for (let i = matchStart; i < matchStart + patternLength; i++) {
+      matchedIndices.add(i);
+    }
+  }
+
+  // Find secondary strings, e.g. pattern
+  const secondaryString = Object.entries(currentState).find(([k, v]) => typeof v === 'string' && k !== name && !k.startsWith('__') && v.length > 0) as [string, string] | undefined;
+
+  return (
+    <div className="string-view" key={event.step}>
+      <div className="string-tape-section">
+        <span className="array-label">{name}</span>
+        <div className={`string-cells ${comparing ? 'is-comparing' : ''}`}>
+          {Array.from(value.slice(0, 120)).map((char, index) => {
+            const isMatched = matchedIndices.has(index);
+            const isCompared = activeIndices.has(index);
+            const isPointer = pointerIndex === index;
+            const stateClass = isMatched ? 'is-matched' : isCompared ? 'is-compared' : isPointer ? 'is-pointer' : '';
+            return (
+              <div className={`string-cell ${stateClass} ${animate && (isCompared || isMatched) ? 'is-animated' : ''}`} key={index}>
+                {isPointer && <span className="string-pointer-badge">▲ {pointerEntry?.[0] || 'ptr'}</span>}
+                <small>{index}</small>
+                <b>{char === ' ' ? '␠' : char}</b>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {secondaryString && (
+        <div
+          className="string-tape-section string-pattern-section"
+          style={{
+            marginLeft: pointerIndex !== undefined && pointerIndex >= 0 ? `${pointerIndex * 52}px` : undefined,
+            transition: 'margin-left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+          }}
+        >
+          <span className="array-label">{secondaryString[0]} {pointerIndex !== undefined ? `(aligned at index ${pointerIndex})` : ''}</span>
+          <div className="string-cells string-pattern-row">
+            {Array.from(secondaryString[1].slice(0, 120)).map((char, pIndex) => {
+              const alignedTextIndex = (pointerIndex ?? 0) + pIndex;
+              const isMatched = matchedIndices.has(alignedTextIndex);
+              const isCompared = activeIndices.has(alignedTextIndex);
+              return (
+                <div className={`string-cell ${isMatched ? 'is-matched' : isCompared ? 'is-compared' : ''}`} key={pIndex}>
+                  <small>{pIndex}</small>
+                  <b>{char === ' ' ? '␠' : char}</b>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {value.length > 120 && <span className="muted">Showing first 120 characters</span>}
+    </div>
+  );
 }
 
 function LinkedListView({ event, root }: { event: TraceEvent; root: Record<string, unknown> }) {
@@ -218,7 +346,25 @@ function TreeView({ event, root }: { event: TraceEvent; root: Record<string, unk
   const active = String(activeValue(current) ?? activeValue(node) ?? '');
   return <svg className="tree-svg" viewBox="0 0 620 390" role="img" aria-label="Tree nodes and child links">
     {nodes.filter(node => node.parent).map(node => { const parent = nodes.find(candidate => candidate.key === node.parent)!; return <line key={`edge-${node.key}`} x1={xFor(parent)} y1={yFor(parent)} x2={xFor(node)} y2={yFor(node)} className="tree-edge"/>; })}
-    {nodes.map(node => <g key={node.key}><circle cx={xFor(node)} cy={yFor(node)} r="23" className={node.value === active ? 'tree-node active-node' : 'tree-node'}/><text x={xFor(node)} y={yFor(node) + 5} textAnchor="middle" className="tree-node-label">{node.value}</text><text x={xFor(node) - 34} y={yFor(node) + 4} textAnchor="end" className="tree-side-label">{node.depth === 0 ? 'root' : node.key.at(-1)?.toLowerCase()}</text></g>)}
+    {nodes.map(node => {
+      const isActive = node.value === active;
+      const isYellow = isActive;
+      return (
+        <g key={node.key}>
+          <circle cx={xFor(node)} cy={yFor(node)} r="23" className={isActive ? 'tree-node active-node' : 'tree-node'}/>
+          <text
+            x={xFor(node)}
+            y={yFor(node) + 5}
+            textAnchor="middle"
+            className={`tree-node-label ${isYellow ? 'active-node-label' : ''}`}
+            style={{ fill: isYellow ? '#000000' : '#eff5e8' }}
+          >
+            {node.value}
+          </text>
+          <text x={xFor(node) - 34} y={yFor(node) + 4} textAnchor="end" className="tree-side-label">{node.depth === 0 ? 'root' : node.key.at(-1)?.toLowerCase()}</text>
+        </g>
+      );
+    })}
     {!nodes.length && <text x="310" y="190" textAnchor="middle" className="tree-node-label">Tree is empty</text>}
   </svg>;
 }
@@ -228,7 +374,28 @@ function HeapView({ event, name, values }: { event: TraceEvent; name: string; va
   const point = (index: number) => { const depth = Math.floor(Math.log2(index + 1)); const first = 2 ** depth - 1; const position = index - first; return { x: width * (position + 1) / (2 ** depth + 1), y: 42 + depth * 67 }; };
   const focused = new Set(event.focus.indices || []);
   return <div className="heap-view">
-    <svg className="heap-svg" viewBox={`0 0 ${width} ${maxDepth * 68 + 30}`} role="img" aria-label="Heap tree representation">{values.map((value, index) => { const p = point(index); const parentIndex = index ? Math.floor((index - 1) / 2) : -1; const parent = parentIndex >= 0 ? point(parentIndex) : undefined; const edgeActive = focused.has(index) && focused.has(parentIndex); return <g key={index}>{parent && <line x1={parent.x} y1={parent.y} x2={p.x} y2={p.y} className={edgeActive ? 'tree-edge active-edge' : 'tree-edge'}/>}<circle cx={p.x} cy={p.y} r="20" className={focused.has(index) ? 'tree-node active-node' : 'tree-node'}/><text x={p.x} y={p.y + 5} textAnchor="middle" className="tree-node-label">{String(value)}</text></g>; })}</svg>
+    <svg className="heap-svg" viewBox={`0 0 ${width} ${maxDepth * 68 + 30}`} role="img" aria-label="Heap tree representation">{values.map((value, index) => {
+      const p = point(index);
+      const parentIndex = index ? Math.floor((index - 1) / 2) : -1;
+      const parent = parentIndex >= 0 ? point(parentIndex) : undefined;
+      const edgeActive = focused.has(index) && focused.has(parentIndex);
+      const isActive = focused.has(index);
+      return (
+        <g key={index}>
+          {parent && <line x1={parent.x} y1={parent.y} x2={p.x} y2={p.y} className={edgeActive ? 'tree-edge active-edge' : 'tree-edge'}/>}
+          <circle cx={p.x} cy={p.y} r="20" className={isActive ? 'tree-node active-node' : 'tree-node'}/>
+          <text
+            x={p.x}
+            y={p.y + 5}
+            textAnchor="middle"
+            className={`tree-node-label ${isActive ? 'active-node-label' : ''}`}
+            style={{ fill: isActive ? '#000000' : '#eff5e8' }}
+          >
+            {String(value)}
+          </text>
+        </g>
+      );
+    })}</svg>
     <div className="heap-array"><span>{name}</span>{values.map((value, i) => <div className={`matrix-cell ${focused.has(i) ? 'is-focused' : ''}`} key={i}><small>{i}</small><b>{String(value)}</b></div>)}</div>
   </div>;
 }
@@ -238,31 +405,145 @@ function MappingView({ value }: { value: Record<string, unknown> }) {
   return <div className="mapping-view">{entries.map(([key, val]) => <div className="mapping-entry" key={key}><code>{key}</code><span>→</span><b>{pretty(val)}</b></div>)}{!entries.length && <span className="muted">Empty mapping</span>}</div>;
 }
 
-function Visual({ event, animate }: { event?: TraceEvent; animate: boolean }) {
+function UnionFindView({ event, state }: { event: TraceEvent; state: Record<string, unknown> }) {
+  const parent = Object.entries(state).find(([name, value]) => /parent/i.test(name) && Array.isArray(value));
+  if (!parent) {
+    const mapping = Object.entries(state).find(([name, value]) => /parent/i.test(name) && !!value && typeof value === 'object' && !Array.isArray(value));
+    return mapping ? <MappingView value={mapping[1] as Record<string, unknown>}/> : <StateSummaryView state={state}/>;
+  }
+  const active = new Set(event.focus.indices || []);
+  return <div className="mapping-view union-find-view">{(parent[1] as unknown[]).map((root, index) => <div className={`mapping-entry ${active.has(index) ? 'is-focused' : ''}`} key={index}><code>{index}</code><span>→</span><b>{pretty(root)}</b></div>)}</div>;
+}
+
+function MathematicalView({ event, state }: { event: TraceEvent; state: Record<string, unknown> }) {
+  const values = Object.entries(state).filter(([, value]) => typeof value === 'number' || typeof value === 'boolean');
+  return <div className="mapping-view mathematical-view"><div className="mapping-entry"><code>Operation</code><b>{event.statement || event.operation}</b></div>{values.map(([name, value]) => <div className="mapping-entry" key={name}><code>{name}</code><b>{String(value)}</b></div>)}{!values.length && <span className="muted">No numeric values captured</span>}</div>;
+}
+
+function RangeQueryView({ event, state, array, tree, animate }: { event: TraceEvent; state: Record<string, unknown>; array?: [string, unknown[]]; tree?: [string, Record<string, unknown>]; animate: boolean }) {
+  if (array && tree) return <div className="range-query-view"><ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/><TreeView event={event} root={tree[1]}/></div>;
+  if (array) return <ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/>;
+  if (tree) return <TreeView event={event} root={tree[1]}/>;
+  return <StateSummaryView state={state}/>;
+}
+
+function AuxiliaryStructures({ event, source }: { event?: TraceEvent; source: string }) {
+  if (!event || ['stack', 'queue', 'deque'].includes(resolveVisualizerRoute(event.dataStructure))) return null;
+  const state = event.afterState || event.state;
+  const appended = new Set(Array.from(source.matchAll(/\b([A-Za-z_]\w*)\s*\.\s*(?:append|push)\s*\(/g), match => match[1]));
+  const popped = new Set(Array.from(source.matchAll(/\b([A-Za-z_]\w*)\s*\.\s*pop\s*\(/g), match => match[1]));
+  const leftRemoved = new Set(Array.from(source.matchAll(/\b([A-Za-z_]\w*)\s*\.\s*(?:popleft|get)\s*\(/g), match => match[1]));
+  const dequeNames = new Set(Array.from(source.matchAll(/\b([A-Za-z_]\w*)\s*=\s*(?:collections\.)?deque\s*\(/g), match => match[1]));
+  const names = new Set([...appended].filter(name => Array.isArray(state[name]) && (popped.has(name) || leftRemoved.has(name) || dequeNames.has(name))));
+  const auxiliary = [...names].filter(name => {
+    if (dequeNames.has(name) || leftRemoved.has(name) || (popped.has(name) && /\.\s*pop\s*\(\s*0\s*\)/.test(source))) return true;
+    return popped.has(name);
+  });
+  if (!auxiliary.length) return null;
+  return <section className="bottom-section auxiliary-structures"><span className="eyebrow">SUPPORTING STRUCTURES</span>{auxiliary.map(name => {
+    const structure = dequeNames.has(name) || leftRemoved.has(name) || /\.\s*pop\s*\(\s*0\s*\)/.test(source) ? 'queue' : 'stack';
+    return <div className="auxiliary-structure" key={name}><span className="array-label">{name}</span><StackQueueView event={event} values={state[name] as unknown[]} structure={structure}/></div>;
+  })}</section>;
+}
+
+function StateSummaryView({ state }: { state: Record<string, unknown> }) {
+  const entries = Object.entries(state).filter(([name]) => !name.startsWith('__'));
+  return <div className="mapping-view state-view">
+    {entries.map(([name, value]) => <div className="mapping-entry" key={name}><code>{name}</code><span>:</span><b>{pretty(value)}</b></div>)}
+    {!entries.length && <span className="muted">No state values captured</span>}
+  </div>;
+}
+
+function BitwiseView({ state }: { state: Record<string, unknown> }) {
+  const registers = Object.entries(state).filter(([, value]) => typeof value === 'number' && Number.isInteger(value));
+  return <div className="mapping-view bitwise-view">
+    {registers.map(([name, value]) => <div className="mapping-entry" key={name}><code>{name}</code><span>=</span><b>{String(value)}</b><code>{(value as number).toString(2)}</code></div>)}
+    {!registers.length && <StateSummaryView state={state}/ >}
+  </div>;
+}
+
+function GeometryView({ state }: { state: Record<string, unknown> }) {
+  const entry = Object.entries(state).find(([name, value]) => /point|coordinate/i.test(name) && Array.isArray(value) && value.every(point => Array.isArray(point) && point.length >= 2 && point.slice(0, 2).every(Number.isFinite)))
+    || Object.entries(state).find(([, value]) => Array.isArray(value) && value.length > 0 && value.every(point => Array.isArray(point) && point.length >= 2 && point.slice(0, 2).every(Number.isFinite)));
+  if (!entry) return <StateSummaryView state={state}/>;
+  const [name, rawPoints] = entry;
+  const points = rawPoints as number[][];
+  const xs = points.map(point => point[0]);
+  const ys = points.map(point => point[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const x = (value: number) => 40 + (value - minX) / (maxX - minX || 1) * 540;
+  const y = (value: number) => 280 - (value - minY) / (maxY - minY || 1) * 240;
+  return <svg className="graph-svg geometry-svg" viewBox="0 0 620 320" role="img" aria-label={`${name} coordinate plot`}>
+    <line x1="40" y1="280" x2="590" y2="280" className="graph-edge"/><line x1="40" y1="280" x2="40" y2="30" className="graph-edge"/>
+    {points.length > 2 && <polyline points={points.map(point => `${x(point[0])},${y(point[1])}`).join(' ')} fill="none" className="graph-edge"/>}
+    {points.map((point, index) => <g key={index}><circle cx={x(point[0])} cy={y(point[1])} r="7" className="graph-node"/><text x={x(point[0]) + 9} y={y(point[1]) - 8} className="graph-node-label">({point[0]}, {point[1]})</text></g>)}
+  </svg>;
+}
+
+function RecursionView({ event }: { event: TraceEvent }) {
+  return <div className="recursion-view call-stack">
+    {event.callStack.map((frame, index) => <div className={`call-frame ${index === event.callStack.length - 1 ? 'active-frame' : ''}`} key={`${frame.name}-${index}`}><b>{frame.name}()</b><span>line {frame.line}</span><small>{Object.entries(frame.arguments).map(([name, value]) => `${name}=${pretty(value)}`).join(', ')}</small></div>)}
+    {!event.callStack.length && <span className="muted">No active recursive calls</span>}
+  </div>;
+}
+
+type VisualErrorBoundaryProps = { children: React.ReactNode };
+type VisualErrorBoundaryState = { failed: boolean };
+
+class VisualErrorBoundary extends React.Component<VisualErrorBoundaryProps, VisualErrorBoundaryState> {
+  state: VisualErrorBoundaryState = { failed: false };
+
+  static getDerivedStateFromError(): VisualErrorBoundaryState {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('Visualization render failed', error);
+  }
+
+  render() {
+    if (this.state.failed) return <div className="error visual-error" role="alert"><AlertCircle/> This step could not be visualized.</div>;
+    return this.props.children;
+  }
+}
+
+function Visual({ event, animate, source }: { event?: TraceEvent; animate: boolean; source: string }) {
   if (!event) return <div className="empty">Run your Python code to record its execution.</div>;
   if (event.eventType === 'error') return <div className="error visual-error"><AlertCircle/> {event.explanation}</div>;
+  const route = resolveVisualizerRoute(event.dataStructure);
   const state = event.afterState || event.state;
-  const array = findArray(state, event.structure);
+  const annotatedName = source.match(/@visualize\s+[\w-]+\s+(\w+)/i)?.[1];
+  const annotatedValue = annotatedName ? state[annotatedName] : undefined;
+  const array = findArray(state, event.dataStructure, source);
   const stringValue = findString(state);
-  const linked = findObject(state, 'next');
-  const tree = findObject(state, 'left') || findObject(state, 'right');
-  const trie = findObject(state, 'children');
-  if (event.structure === 'graph') {
-    const entry = Object.entries(state).find(([key, value]) => key.toLowerCase().includes('graph') && !!value && typeof value === 'object' && !Array.isArray(value));
-    if (entry) return <GraphView event={event} graph={entry[1] as Record<string, unknown>}/>;
-  }
-  if (event.structure === 'linked-list' && linked) return <LinkedListView event={event} root={linked[1]}/>;
-  if (event.structure === 'tree' && tree) return <TreeView event={event} root={tree[1]}/>;
-  if (event.structure === 'trie' && trie) return <MappingView value={(trie[1].children || trie[1]) as Record<string, unknown>}/>;
-  if (event.structure === 'heap' && array) return <HeapView event={event} name={array[0]} values={array[1]}/>;
-  if ((event.structure === 'stack' || event.structure === 'queue' || event.structure === 'deque') && array) return <StackQueueView event={event} values={array[1]} structure={event.structure}/>;
-  if (array) return <ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/>;
-  if (event.structure === 'string' && stringValue) return <StringView event={event} name={stringValue[0]} value={stringValue[1]}/>;
-  if (event.structure === 'hash-table' || event.structure === 'union-find' || event.structure === 'mapping') {
-    const entry = Object.entries(state).find(([name, value]) => !!value && typeof value === 'object' && !Array.isArray(value) && !['__builtins__'].includes(name));
-    if (entry) return <MappingView value={(entry[1] as Record<string, unknown>)}/>;
-  }
-  return <pre className="state-view">{JSON.stringify(state, null, 2)}</pre>;
+  const linked = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : findObject(state, 'next') || (event.structure === 'linked-list' ? findObject(state, 'value') || findTypedObject(state) : undefined);
+  const tree = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : findObject(state, 'left') || findObject(state, 'right') || findObject(state, 'value') || (event.structure === 'tree' ? findTypedObject(state) : undefined);
+  const trie = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : findObject(state, 'children') || (event.structure === 'trie' ? findTypedObject(state) : undefined);
+  const graphEntry = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : Object.entries(state).find(([name, value]) => /^(graph|network|adj|adjacency)$/i.test(name) && !!value && typeof value === 'object' && !Array.isArray(value));
+  const hashEntry = Object.entries(state).find(([name, value]) => /hash|table|map|count|freq/i.test(name) && !!value && typeof value === 'object' && !Array.isArray(value));
+  const hashValue = hashEntry?.[1] as Record<string, unknown> | undefined;
+  const routes: Record<VisualizerRoute, () => React.ReactNode> = {
+    graph: () => graphEntry ? <GraphView event={event} graph={graphEntry[1] as Record<string, unknown>}/> : <StateSummaryView state={state}/>,
+    'linked-list': () => linked ? <LinkedListView event={event} root={linked[1]}/> : <StateSummaryView state={state}/>,
+    tree: () => tree ? <TreeView event={event} root={tree[1]}/> : <StateSummaryView state={state}/>,
+    trie: () => trie ? <MappingView value={(trie[1].children || trie[1]) as Record<string, unknown>}/> : <StateSummaryView state={state}/>,
+    heap: () => array ? <HeapView event={event} name={array[0]} values={array[1]}/> : <StateSummaryView state={state}/>,
+    stack: () => array ? <StackQueueView event={event} values={array[1]} structure="stack"/> : <StateSummaryView state={state}/>,
+    queue: () => array ? <StackQueueView event={event} values={array[1]} structure="queue"/> : <StateSummaryView state={state}/>,
+    deque: () => array ? <StackQueueView event={event} values={array[1]} structure="deque"/> : <StateSummaryView state={state}/>,
+    array: () => array ? <ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/> : <StateSummaryView state={state}/>,
+    'dynamic-programming': () => array ? <ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/> : <StateSummaryView state={state}/>,
+    'range-query': () => <RangeQueryView event={event} state={state} array={array} tree={tree} animate={animate}/>,
+    string: () => stringValue ? <StringView event={event} name={stringValue[0]} value={stringValue[1]} state={state} animate={animate}/> : <StateSummaryView state={state}/>,
+    'hash-table': () => hashValue ? <MappingView value={hashValue}/> : array ? <ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/> : <StateSummaryView state={state}/>,
+    'union-find': () => <UnionFindView event={event} state={state}/>,
+    recursion: () => <RecursionView event={event}/>,
+    bitwise: () => <BitwiseView state={state}/>,
+    geometry: () => <GeometryView state={state}/>,
+    mathematical: () => <MathematicalView event={event} state={state}/>,
+    variables: () => <StateSummaryView state={state}/>,
+  };
+  return routes[route]();
 }
 
 function App() {
@@ -323,6 +604,25 @@ function App() {
   const beforeText = useMemo(() => event ? JSON.stringify(event.beforeState, null, 2) : '', [event]);
   const afterText = useMemo(() => event ? JSON.stringify(event.afterState, null, 2) : '', [event]);
 
+  const matchMessage = useMemo(() => {
+    if (!event) return null;
+    const currentState = (event.afterState || event.state || {}) as Record<string, unknown>;
+    const foundAt = typeof event.variables?.found_at === 'number'
+      ? (event.variables.found_at as number)
+      : (typeof event.variables?.found === 'number' ? (event.variables.found as number) : undefined);
+    const comparing = event.eventType === 'compare' || event.operation === 'compare';
+    const isBranchTaken = event.focus?.result === 'taken';
+    const pointerNames = ['index', 'idx', 'i', 'j', 'start', 'left', 'right', 'position'];
+    const pointerEntry = Object.entries(event.variables || {}).find(([k, v]) => pointerNames.includes(k) && typeof v === 'number');
+    const pointerIndex = pointerEntry ? (pointerEntry[1] as number) : (typeof currentState.index === 'number' ? (currentState.index as number) : undefined);
+    const isMatchFound = foundAt !== undefined || (comparing && isBranchTaken && event.structure === 'string') || event.variables?.is_palindrome === true;
+    const matchStart = foundAt !== undefined ? foundAt : (isMatchFound && pointerIndex !== undefined ? pointerIndex : (event.focus?.indices?.[0] ?? -1));
+    if (isMatchFound && matchStart >= 0) {
+      return `Pattern matched at index ${matchStart}`;
+    }
+    return null;
+  }, [event]);
+
   return <div className="app">
     <header><div className="brand"><div className="logo">TF</div><div><h1>TraceForge</h1><span>Python DSA visualizer</span></div></div><div className="header-actions"><button className="ghost" aria-label="Learning resources"><BookOpen size={16}/> Learn</button><button className="ghost" aria-label="Python playground"><Code2 size={16}/> Playground</button></div></header>
     <main><aside className="sidebar"><div className="side-title">WORKSPACE</div><button className="nav active"><Code2/> Editor</button><button className="nav"><GitBranch/> Algorithms</button><button className="nav"><Layers/> Data structures</button><div className="side-title samples">SAMPLES</div>{Object.keys(samples).map(name => <button className={`sample ${sample === name ? 'selected' : ''}`} onClick={() => { setSample(name); setCode(samples[name]); setEvents([]); setIndex(0); }} key={name}>{name}</button>)}</aside>
@@ -333,15 +633,16 @@ function App() {
         </div>
         <div className="panes"><div className="editor-pane"><div className="pane-head"><span>main.py</span><span className="python">PYTHON</span></div><Editor height="100%" language="python" theme="vs-dark" value={code} onChange={value => { setCode(value || ''); setEvents([]); setIndex(0); setRunning(false); }} onMount={editor => { codeEditor.current = editor; }} options={{ minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, automaticLayout: true, glyphMargin: true, ariaLabel: 'Python source code editor' }}/></div>
           <div className="visual-pane"><div className="visual-head"><div><span className="eyebrow">EXECUTION VISUALIZATION</span><h2>{event?.structure || 'Ready to trace'}</h2></div><span className="step">{events.length ? `Step ${index + 1} / ${events.length}` : 'No trace yet'}</span></div>
-            <div className="canvas"><Visual event={event} animate={animate}/></div><div className="legend" aria-label="Visualization legend"><span><i className="legend-compare"/>Comparison</span><span><i className="legend-change"/>Changed value</span><span><i className="legend-pointer"/>Current pointer</span></div>
+            <PanZoomCanvas><VisualErrorBoundary key={event?.step ?? 0}><Visual event={event} animate={animate} source={code}/></VisualErrorBoundary></PanZoomCanvas><div className="legend" aria-label="Visualization legend"><span><i className="legend-compare"/>Comparison</span><span><i className="legend-change"/>Changed value</span><span><i className="legend-pointer"/>Current pointer</span></div>
             <div className="timeline" aria-label="Execution timeline"><div className="progress" style={{ width: `${progress}%` }}/><input aria-label="Jump to execution step" className="timeline-range" type="range" min="0" max={Math.max(0, events.length - 1)} value={index} disabled={!events.length} onChange={e => { setRunning(false); setIndex(Number(e.target.value)); }}/><div className="timeline-labels"><span>{events.length ? `#${index + 1} · line ${event?.line || '—'}` : 'Run to create steps'}</span><span>{events.length ? `${events.length} events` : '← → keys step · Space plays'}</span></div></div>
-            <div className="explain"><span className="event-chip">{event?.eventType || 'READY'}</span><div className="event-description"><b>{event?.explanation || 'Run your Python code to record its actual operations'}</b><small>{event?.statement || 'The source line and exact state will appear here.'}</small></div></div>
+            <div className="explain"><span className="event-chip">{matchMessage ? 'MATCH' : (event?.eventType || 'READY')}</span><div className="event-description"><b>{matchMessage ? `✓ ${matchMessage} · ${event?.explanation || ''}` : (event?.explanation || 'Run your Python code to record its actual operations')}</b><small>{event?.statement || 'The source line and exact state will appear here.'}</small></div></div>
           </div>
         </div>
         <div className="bottom">
+          <AuxiliaryStructures event={event} source={code}/>
           <section className="bottom-section"><div className="section-heading"><span className="eyebrow">VARIABLES · {event?.function || '—'}()</span>{event && <span className="depth-pill">depth {event.depth}</span>}</div>{Object.keys(variables).length ? <div className="vars">{Object.entries(variables).map(([key, value]) => <div className="var" key={key}><code>{key}</code><span title={pretty(value)}>{pretty(value)}</span></div>)}</div> : <p className="muted">Variables at this execution point will appear here.</p>}</section>
           <section className="bottom-section call-stack-section"><span className="eyebrow">CALL STACK</span>{event?.callStack.length ? <div className="call-stack">{event.callStack.map((frame, i) => <div className={`call-frame ${i === event.callStack.length - 1 ? 'active-frame' : ''}`} key={`${frame.name}-${i}`}><b>{frame.name}()</b><span>line {frame.line}</span><small>{Object.entries(frame.arguments).map(([k, v]) => `${k}=${pretty(v)}`).join(', ')}</small></div>)}</div> : <p className="muted">No active function calls at this step.</p>}</section>
-          <section className="bottom-section event-meta"><span className="eyebrow">SOURCE & OPERATION</span><p className="source-statement"><code>{event?.line ? `${event.line}: ` : ''}{event?.statement || 'Waiting for execution'}</code></p><p className="muted">{event?.operation || '—'}{event?.returnValue !== undefined ? ` · returns ${pretty(event.returnValue)}` : ''}{event?.focus.result ? ` · branch ${event.focus.result}` : ''}</p>{event?.output && <pre className="event-output">{event.output}</pre>}<label className="toggle"><input type="checkbox" checked={animate} onChange={e => setAnimate(e.target.checked)}/> Animate changed values</label><button className="states-toggle" onClick={() => setShowStates(open => !open)}>{showStates ? 'Hide' : 'Inspect'} before / after state</button></section>
+          <section className="bottom-section event-meta"><span className="eyebrow">SOURCE & OPERATION</span><p className="source-statement"><code>{event?.line ? `${event.line}: ` : ''}{event?.statement || 'Waiting for execution'}</code></p><p className="muted">{event?.operation || '—'}{event?.returnValue !== undefined ? ` · returns ${pretty(event.returnValue)}` : ''}{event?.focus.result ? ` · branch ${event.focus.result}` : ''}{matchMessage ? ` · ✓ ${matchMessage}` : ''}</p>{matchMessage && <div className="operation-status-badge" aria-label="Operation status">✓ {matchMessage}</div>}{event?.lineComplexity && <div className="line-complexity" aria-label="Time and space cost for this step"><span>Time <b>{event.lineComplexity.time && event.lineComplexity.time !== 'O(?)' && event.lineComplexity.time !== '?' ? event.lineComplexity.time : 'O(1)'}</b> · {event.lineComplexity.timeDetails && !event.lineComplexity.timeDetails.includes('not covered') && !event.lineComplexity.timeDetails.includes('O(?)') ? event.lineComplexity.timeDetails : 'Scalar operation'}</span><br/><span>Space <b>{event.lineComplexity.space && event.lineComplexity.space !== 'O(?)' && event.lineComplexity.space !== '?' ? event.lineComplexity.space : 'O(1)'}</b> · {event.lineComplexity.spaceDetails && !event.lineComplexity.spaceDetails.includes('not covered') && !event.lineComplexity.spaceDetails.includes('O(?)') ? event.lineComplexity.spaceDetails : 'No additional auxiliary elements'}</span></div>}{event?.output && <pre className="event-output">{event.output}</pre>}<label className="toggle"><input type="checkbox" checked={animate} onChange={e => setAnimate(e.target.checked)}/> Animate changed values</label><button className="states-toggle" onClick={() => setShowStates(open => !open)}>{showStates ? 'Hide' : 'Inspect'} before / after state</button></section>
         </div>
         {showStates && event && <div className="state-comparison"><div><span className="eyebrow">BEFORE THIS EVENT</span><pre>{beforeText}</pre></div><div><span className="eyebrow">AFTER THIS EVENT</span><pre>{afterText}</pre></div></div>}
         {error && <div className="toast error"><AlertCircle size={18}/>{error}</div>}

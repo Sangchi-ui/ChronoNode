@@ -3,3 +3,43 @@
 .array-cell.is-changed{border-color:#d7f675;box-shadow:0 0 0 2px #d7f67544;animation:array-change .28s ease-out}
 @keyframes array-move{from{transform:translateX(var(--move-from,0));box-shadow:0 0 0 2px #d7f67566}to{transform:translateX(0);box-shadow:0 0 0 0 transparent}}
 @keyframes array-change{from{filter:brightness(1.7);transform:scale(1.04)}to{filter:brightness(1);transform:scale(1)}}
+
+/* High contrast for yellow active nodes */
+.active-node-label{fill:#000000!important;color:#000000!important;font-weight:800}
+
+/* Recursion Call Stack: expanding list without fixed height or internal scrollbar */
+.recursion-view,
+.recursion-view.call-stack{
+  height:auto!important;
+  max-height:none!important;
+  overflow:visible!important;
+  overflow-y:visible!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-self:stretch;
+  width:min(100%,560px);
+  padding:16px 20px;
+  gap:8px;
+}
+.recursion-view .call-frame{flex-shrink:0;width:100%}
+
+/* Horizontal String Visualizer & Animations */
+.string-view{display:flex;flex-direction:column;align-items:flex-start;gap:16px;width:max-content;overflow:visible;padding:20px 24px}
+.string-tape-section{display:flex;flex-direction:column;gap:6px;width:max-content;overflow:visible}
+.string-cells{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:stretch;gap:6px;width:max-content;overflow:visible;padding:8px 4px 12px}
+.string-cell{display:flex;flex:0 0 46px;width:46px;height:58px;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:1px solid #39485b;border-radius:6px;background:#18212d;position:relative;transition:transform .22s cubic-bezier(.34,1.56,.64,1),background-color .2s ease,border-color .2s ease,box-shadow .2s ease}
+.string-cell small{font:10px 'DM Mono',monospace;color:#8190a5;user-select:none}
+.string-cell b{font:17px 'DM Mono',monospace;color:#eff3e8;font-weight:700}
+.string-cell.is-pointer{border-color:#86bdff;background:#1a2a3e;box-shadow:0 0 0 2px rgba(134,189,255,.35);transform:translateY(-2px)}
+.string-cell.is-pointer small{color:#86bdff}
+.string-cell.is-compared{background:#d7f675;border-color:#efffc2;box-shadow:0 0 8px rgba(215,246,117,.45);transform:translateY(-4px) scale(1.04)}
+.string-cell.is-compared b,.string-cell.is-compared small{color:#11170b}
+.string-cell.is-matched{background:#4ade80;border-color:#bbf7d0;box-shadow:0 0 12px rgba(74,222,128,.5);transform:translateY(-4px) scale(1.06)}
+.string-cell.is-matched b,.string-cell.is-matched small{color:#052e16}
+.string-cells.is-comparing .string-cell.is-compared{animation:string-compare .28s ease-out}
+@keyframes string-compare{0%{transform:translateY(0) scale(1)}50%{transform:translateY(-8px) scale(1.1);filter:brightness(1.25)}100%{transform:translateY(-4px) scale(1.04)}}
+.string-cell.is-matched{animation:string-match .35s ease-out}
+@keyframes string-match{0%{transform:translateY(0) scale(1);filter:brightness(1)}50%{transform:translateY(-8px) scale(1.12);filter:brightness(1.4)}100%{transform:translateY(-4px) scale(1.06)}}
+.string-pointer-badge{position:absolute;top:-18px;font:9px 'DM Mono',monospace;color:#86bdff;letter-spacing:.05em;white-space:nowrap}
+.string-pattern-row{margin-top:4px;transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
+.string-match-banner{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#14341c;border:1px solid #22c55e;border-radius:4px;color:#4ade80;font:11px 'DM Mono',monospace}
