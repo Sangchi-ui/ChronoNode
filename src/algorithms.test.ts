@@ -3,12 +3,14 @@ import { ALL_ALGORITHMS, ALGORITHM_CATEGORIES } from './data/algorithms';
 
 let algorithmsCss = '';
 let algorithmsPanelTsx = '';
+let miniGraphicTsx = '';
 
 beforeAll(async () => {
   // @ts-ignore
   const fs = await import('node:fs');
   algorithmsCss = fs.readFileSync(new URL('./algorithms.css', import.meta.url), 'utf-8');
   algorithmsPanelTsx = fs.readFileSync(new URL('./AlgorithmsPanel.tsx', import.meta.url), 'utf-8');
+  miniGraphicTsx = fs.readFileSync(new URL('./MiniGraphic.tsx', import.meta.url), 'utf-8');
 });
 
 describe('Algorithms Registry', () => {
@@ -170,33 +172,88 @@ describe('Algorithms Registry', () => {
     }
   });
 
-  describe('Wrapping Chip Cloud Category Filter Layout', () => {
-    it('implements flex-wrap and removes horizontal scroll constraints', () => {
-      // 1. Flex Wrap
+  describe('Category Filter Bar - Full Width, No Collapse', () => {
+    it('spans 100% full width with flex-wrap and removes all expand/collapse mechanisms', () => {
+      // 1. Flex Wrap & Full Width in CSS
+      expect(algorithmsCss).toMatch(/\.algo-category-pills\s*\{[^}]*width:\s*100%;/);
       expect(algorithmsCss).toMatch(/\.algo-category-pills\s*\{[^}]*display:\s*flex;/);
       expect(algorithmsCss).toMatch(/\.algo-category-pills\s*\{[^}]*flex-wrap:\s*wrap;/);
 
-      // 2. No horizontal scroll constraints or scrollbars
+      // 2. No horizontal scroll constraints or rogue scrollbars
       expect(algorithmsCss).not.toMatch(/\.algo-category-pills\s*\{[^}]*overflow-x:\s*(auto|scroll)/);
-      expect(algorithmsCss).not.toMatch(/\.algo-category-pills\s*\{[^}]*scrollbar-width/);
       expect(algorithmsCss).not.toMatch(/\.algo-category-pills\s*\{[^}]*whitespace-nowrap/);
 
-      // 3. Uniform spacing
-      expect(algorithmsCss).toMatch(/\.algo-category-pills\s*\{[^}]*gap:\s*8px\s+10px;/);
+      // 3. Expand / Collapse toggle & container completely removed
+      expect(algorithmsCss).not.toContain('.algo-category-pills.is-collapsed');
+      expect(algorithmsCss).not.toContain('.algo-category-pills.is-expanded');
+      expect(algorithmsCss).not.toContain('.algo-pills-toggle-btn');
+      expect(algorithmsCss).not.toContain('.algo-category-container');
 
-      // 4. Chip styling: natural height
-      expect(algorithmsCss).toMatch(/\.algo-pill\s*\{[^}]*height:\s*fit-content;/);
+      // 4. TSX component has full width classes and no expand/collapse state
+      expect(algorithmsPanelTsx).toContain('className="algo-category-pills w-full flex flex-wrap');
+      expect(algorithmsPanelTsx).not.toContain('isExpanded');
+      expect(algorithmsPanelTsx).not.toContain('algo-pills-toggle-btn');
+      expect(algorithmsPanelTsx).not.toContain('algo-category-container');
+      expect(algorithmsPanelTsx).not.toContain('ChevronDown');
+      expect(algorithmsPanelTsx).not.toContain('ChevronUp');
+    });
+  });
 
-      // 5. Expand / Collapse toggle & container
-      expect(algorithmsCss).toContain('.algo-category-container');
-      expect(algorithmsCss).toContain('.algo-category-pills.is-collapsed');
-      expect(algorithmsCss).toContain('.algo-category-pills.is-expanded');
-      expect(algorithmsCss).toContain('.algo-pills-toggle-btn');
+  describe('Dynamic Category-Based Graphics (MiniGraphic)', () => {
+    it('is integrated into algorithm cards in AlgorithmsPanel', () => {
+      expect(algorithmsPanelTsx).toContain("import { MiniGraphic } from './MiniGraphic'");
+      expect(algorithmsPanelTsx).toContain('<MiniGraphic category={algo.category} />');
+      expect(algorithmsPanelTsx).toContain('algo-card-graphic-container');
+    });
 
-      // 6. JSX integration
-      expect(algorithmsPanelTsx).toContain('className="algo-category-container"');
-      expect(algorithmsPanelTsx).toContain('isExpanded ? \'is-expanded\' : \'is-collapsed\'');
-      expect(algorithmsPanelTsx).toContain('className="algo-pills-toggle-btn"');
+    it('uses strictly pure HTML div elements without SVGs or images', () => {
+      expect(miniGraphicTsx).not.toMatch(/<svg[\s>]/i);
+      expect(miniGraphicTsx).not.toMatch(/<img[\s>]/i);
+      expect(miniGraphicTsx).toContain('<div');
+    });
+
+    it('renders category-specific shapes with glassmorphism and neon-green glow', async () => {
+      const { MiniGraphic } = await import('./MiniGraphic');
+      const React = await import('react');
+
+      // 1. Searching: horizontal row of blocks with glowing neon green block
+      const searchShape = MiniGraphic({ category: 'Searching Algorithms' });
+      expect(searchShape.props['data-category-shape']).toBe('searching');
+      expect(searchShape.props.className).toContain('searching-graphic');
+
+      // 2. Sorting: vertical bars of varying heights with neon green highlights
+      const sortShape = MiniGraphic({ category: 'Sorting Algorithms' });
+      expect(sortShape.props['data-category-shape']).toBe('sorting');
+      expect(sortShape.props.className).toContain('sorting-graphic');
+
+      // 3. Trees & Graphs: triangular / tree formation of nodes
+      const treeShape = MiniGraphic({ category: 'Tree Algorithms' });
+      expect(treeShape.props['data-category-shape']).toBe('trees-graphs');
+      const graphShape = MiniGraphic({ category: 'Graph Algorithms' });
+      expect(graphShape.props['data-category-shape']).toBe('trees-graphs');
+
+      // 4. Dynamic Programming (DP) / Matrices: miniature 3x3 square grid
+      const dpShape = MiniGraphic({ category: 'Dynamic Programming (DP) Algorithms' });
+      expect(dpShape.props['data-category-shape']).toBe('dp-matrices');
+
+      // 5. Default / Mathematical: two overlapping hollow CSS squares
+      const mathShape = MiniGraphic({ category: 'Mathematical & Number Theory Algorithms' });
+      expect(mathShape.props['data-category-shape']).toBe('math-default');
+      const geomShape = MiniGraphic({ category: 'Computational Geometry Algorithms' });
+      expect(geomShape.props['data-category-shape']).toBe('math-default');
+    });
+
+    it('defines glassmorphic and neon-green glow styling in algorithms.css', () => {
+      expect(algorithmsCss).toContain('.algo-card-graphic-container');
+      expect(algorithmsCss).toContain('.mini-graphic');
+      expect(algorithmsCss).toContain('.searching-graphic');
+      expect(algorithmsCss).toContain('.sorting-graphic');
+      expect(algorithmsCss).toContain('.tree-graph-graphic');
+      expect(algorithmsCss).toContain('.dp-matrix-graphic');
+      expect(algorithmsCss).toContain('.math-default-graphic');
+      // Neon green glow color
+      expect(algorithmsCss).toContain('#c4f34a');
+      expect(algorithmsCss).toContain('rgba(196, 243, 74');
     });
   });
 });

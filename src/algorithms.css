@@ -94,55 +94,15 @@
   color: #e2e8f0;
 }
 
-/* Category Filter Pills - Wrapping Chip Cloud Layout */
-.algo-category-container {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 12px;
-  position: relative;
-}
-
+/* Category Filter Pills - Full Width Wrapping Chip Cloud Layout (No Collapse) */
 .algo-category-pills {
+  width: 100%;
   display: flex;
   flex-wrap: wrap;
   gap: 8px 10px;
-  padding: 4px 0;
-  transition: max-height 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.algo-category-pills.is-collapsed {
-  max-height: 84px; /* roughly 2 rows of chips */
-  overflow: hidden;
-  position: relative;
-}
-
-.algo-category-pills.is-expanded {
-  max-height: 600px;
-  overflow: visible;
-}
-
-.algo-pills-toggle-btn {
-  align-self: flex-end;
-  display: inline-flex;
+  padding: 4px 0 16px;
+  box-sizing: border-box;
   align-items: center;
-  gap: 5px;
-  background: #151d28;
-  border: 1px solid #28374b;
-  color: #94a3b8;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  user-select: none;
-}
-
-.algo-pills-toggle-btn:hover {
-  background: #1f2b3b;
-  color: #f1f5f9;
-  border-color: #3b4d66;
 }
 
 .algo-pill {
@@ -246,14 +206,191 @@
   white-space: nowrap;
 }
 
+/* Card Graphic Container & Mini Graphic Shapes */
+.algo-card-graphic-container {
+  width: 100%;
+  margin: 6px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-graphic {
+  width: 100%;
+  height: 48px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(51, 65, 85, 0.5);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  transition: all 0.25s ease;
+}
+
+.algo-card:hover .mini-graphic {
+  border-color: rgba(196, 243, 74, 0.4);
+  background: rgba(15, 23, 42, 0.65);
+}
+
+/* 1. Searching Graphic */
+.searching-graphic .graphic-block {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(51, 65, 85, 0.7);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.searching-graphic .graphic-block.is-target {
+  width: 12px;
+  height: 12px;
+  background: #c4f34a;
+  border-color: #d9f99d;
+  box-shadow: 0 0 12px rgba(196, 243, 74, 0.85);
+  transform: scale(1.1);
+}
+
+.algo-card:hover .searching-graphic .graphic-block.is-target {
+  box-shadow: 0 0 16px rgba(196, 243, 74, 1);
+  transform: scale(1.18);
+}
+
+/* 2. Sorting Graphic */
+.sorting-graphic .graphic-bar {
+  width: 8px;
+  border-top-left-radius: 2px;
+  border-top-right-radius: 2px;
+  background: rgba(30, 41, 59, 0.8);
+  border-top: 1px solid rgba(51, 65, 85, 0.7);
+  border-left: 1px solid rgba(51, 65, 85, 0.7);
+  border-right: 1px solid rgba(51, 65, 85, 0.7);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sorting-graphic .bar-1 { height: 10px; }
+.sorting-graphic .bar-2 { height: 16px; }
+.sorting-graphic .bar-3.is-pivot {
+  height: 28px;
+  background: #c4f34a;
+  border-color: #d9f99d;
+  box-shadow: 0 0 12px rgba(196, 243, 74, 0.85);
+}
+.sorting-graphic .bar-4.is-highlight {
+  height: 20px;
+  background: #a3e635;
+  border-color: #d9f99d;
+  box-shadow: 0 0 8px rgba(196, 243, 74, 0.65);
+}
+.sorting-graphic .bar-5 { height: 14px; }
+
+.algo-card:hover .sorting-graphic .bar-3.is-pivot {
+  box-shadow: 0 0 18px rgba(196, 243, 74, 1);
+  transform: scaleY(1.05);
+}
+
+/* 3. Tree & Graph Graphic */
+.tree-graph-graphic .graphic-node {
+  border-radius: 9999px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tree-graph-graphic .graphic-node.is-root {
+  width: 11px;
+  height: 11px;
+  background: #c4f34a;
+  border: 1px solid #d9f99d;
+  box-shadow: 0 0 10px rgba(196, 243, 74, 0.85);
+}
+
+.tree-graph-graphic .graphic-node.child-node {
+  width: 10px;
+  height: 10px;
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(71, 85, 105, 0.8);
+}
+
+.tree-graph-graphic .graphic-node.is-active-child {
+  background: rgba(196, 243, 74, 0.8);
+  border-color: #d9f99d;
+  box-shadow: 0 0 8px rgba(196, 243, 74, 0.6);
+}
+
+/* 4. DP & Matrix Graphic */
+.dp-matrix-graphic .dp-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  padding: 4px;
+  border-radius: 4px;
+  background: rgba(2, 6, 23, 0.5);
+  border: 1px solid rgba(51, 65, 85, 0.6);
+}
+
+.dp-matrix-graphic .dp-cell {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(51, 65, 85, 0.5);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dp-matrix-graphic .dp-cell.is-computed {
+  background: rgba(196, 243, 74, 0.45);
+  border-color: rgba(196, 243, 74, 0.8);
+  box-shadow: 0 0 6px rgba(196, 243, 74, 0.35);
+}
+
+.dp-matrix-graphic .dp-cell.is-optimal {
+  background: #c4f34a;
+  border-color: #d9f99d;
+  box-shadow: 0 0 10px rgba(196, 243, 74, 0.9);
+  transform: scale(1.1);
+}
+
+/* 5. Default / Mathematical Graphic */
+.math-default-graphic .overlapping-square {
+  width: 18px;
+  height: 18px;
+  border-radius: 2px;
+  position: absolute;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.math-default-graphic .square-back {
+  top: 0;
+  left: 0;
+  border: 1.5px solid rgba(100, 116, 139, 0.7);
+  background: rgba(30, 41, 59, 0.3);
+}
+
+.math-default-graphic .square-front {
+  bottom: 0;
+  right: 0;
+  border: 1.5px solid #c4f34a;
+  background: rgba(15, 23, 42, 0.45);
+  box-shadow: 0 0 10px rgba(196, 243, 74, 0.75);
+}
+
+.algo-card:hover .math-default-graphic .square-front {
+  box-shadow: 0 0 16px rgba(196, 243, 74, 0.95);
+  transform: scale(1.05);
+}
+
 .algo-card-title {
-  margin: 10px 0;
-  font-size: 15px;
+  margin: 6px 0;
+  font-size: 14px;
   font-weight: 700;
   color: #f1f5f9;
-  line-height: 1.35;
+  line-height: 1.3;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
