@@ -62,12 +62,12 @@ export function MiniGraphic({ category, className = '' }: MiniGraphicProps) {
           <div className="relative w-24 h-12 flex items-center justify-center">
             {/* Connecting lines */}
             <div className="absolute inset-0 pointer-events-none">
-              <div className="line-nw absolute top-2 left-3 w-9 h-[1px] bg-emerald-600/40 rotate-[22deg] origin-left" />
-              <div className="line-ne absolute top-2 right-3 w-9 h-[1px] bg-emerald-600/40 -rotate-[22deg] origin-right" />
-              <div className="line-sw absolute bottom-2 left-3 w-9 h-[1px] bg-emerald-600/40 -rotate-[22deg] origin-left" />
-              <div className="line-se absolute bottom-2 right-3 w-9 h-[1px] bg-emerald-600/40 rotate-[22deg] origin-right" />
-              <div className="line-top absolute top-2 left-3 right-3 h-[1px] bg-emerald-700/25" />
-              <div className="line-bottom absolute bottom-2 left-3 right-3 h-[1px] bg-emerald-700/25" />
+              <div className="line-nw absolute top-2 left-3 w-9 h-[1px] bg-[#c4f34a]/35 rotate-[22deg] origin-left" />
+              <div className="line-ne absolute top-2 right-3 w-9 h-[1px] bg-[#c4f34a]/35 -rotate-[22deg] origin-right" />
+              <div className="line-sw absolute bottom-2 left-3 w-9 h-[1px] bg-[#c4f34a]/35 -rotate-[22deg] origin-left" />
+              <div className="line-se absolute bottom-2 right-3 w-9 h-[1px] bg-[#c4f34a]/35 rotate-[22deg] origin-right" />
+              <div className="line-top absolute top-2 left-3 right-3 h-[1px] bg-[#c4f34a]/25" />
+              <div className="line-bottom absolute bottom-2 left-3 right-3 h-[1px] bg-[#c4f34a]/25" />
             </div>
             {/* Corner nodes */}
             <div className="outer-node node-tl absolute top-0.5 left-2" />
@@ -84,8 +84,8 @@ export function MiniGraphic({ category, className = '' }: MiniGraphicProps) {
               <div className="graphic-node is-root" />
             </div>
             <div className="tree-branch-lines absolute inset-0 pointer-events-none">
-              <div className="branch-line left-branch absolute top-[10px] left-[16px] w-6 h-[1.5px] bg-emerald-600/50 -rotate-[32deg] origin-left" />
-              <div className="branch-line right-branch absolute top-[10px] right-[16px] w-6 h-[1.5px] bg-emerald-600/50 rotate-[32deg] origin-right" />
+              <div className="branch-line left-branch absolute top-[10px] left-[16px] w-6 h-[1.5px] bg-[#c4f34a]/40 -rotate-[32deg] origin-left" />
+              <div className="branch-line right-branch absolute top-[10px] right-[16px] w-6 h-[1.5px] bg-[#c4f34a]/40 rotate-[32deg] origin-right" />
             </div>
             <div className="tree-bottom-row w-full flex justify-between px-2 z-10">
               <div className="graphic-node child-node" />
