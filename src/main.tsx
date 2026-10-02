@@ -5,7 +5,9 @@ import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, Code2, GitBranch, Lay
 import { tracePython, type TraceEvent } from './trace';
 import { resolveVisualizerRoute, type VisualizerRoute } from './visualizer-routing';
 import { PanZoomCanvas } from './PanZoomCanvas';
+import { AlgorithmsPanel } from './AlgorithmsPanel';
 import './styles.css';
+import './algorithms.css';
 import './deque.css';
 import './graph.css';
 import './matrix.css';
@@ -626,6 +628,7 @@ function Visual({ event, animate, source }: { event?: TraceEvent; animate: boole
 }
 
 function App() {
+  const [tab, setTab] = useState<'editor' | 'algorithms' | 'data-structures'>('editor');
   const [code, setCode] = useState(initial);
   const [events, setEvents] = useState<TraceEvent[]>([]);
   const [index, setIndex] = useState(0);
@@ -716,29 +719,79 @@ function App() {
   }, [event]);
 
   return <div className="app">
-    <header><div className="brand"><div className="logo">CN</div><div><h1>ChronoNode</h1><span>Python DSA visualizer</span></div></div><div className="header-actions"><button className="ghost" aria-label="Learning resources"><BookOpen size={16}/> Learn</button><button className="ghost" aria-label="Python playground"><Code2 size={16}/> Playground</button></div></header>
-    <main><aside className="sidebar"><div className="side-title">WORKSPACE</div><button className="nav active"><Code2/> Editor</button><button className="nav"><GitBranch/> Algorithms</button><button className="nav"><Layers/> Data structures</button><div className="side-title samples">SAMPLES</div>{Object.keys(samples).map(name => <button className={`sample ${sample === name ? 'selected' : ''}`} onClick={() => { setSample(name); setCode(samples[name]); setEvents([]); setIndex(0); }} key={name}>{name}</button>)}</aside>
-      <section className="workspace">
-        <div className="toolbar"><label className="sample-select-label" htmlFor="sample-select">Example</label><select id="sample-select" value={sample} onChange={e => { setSample(e.target.value); setCode(samples[e.target.value]); setEvents([]); setIndex(0); }}>{Object.keys(samples).map(name => <option key={name}>{name}</option>)}</select>
-          <div className="run-controls"><button disabled={!events.length} onClick={() => { setRunning(false); setIndex(0); }} title="Restart replay" aria-label="Restart replay"><RotateCcw size={16}/></button><button disabled={!events.length || index === 0} onClick={() => { setRunning(false); setIndex(i => Math.max(0, i - 1)); }} title="Previous step" aria-label="Previous step"><ChevronLeft size={18}/></button><button className="run" disabled={loading} onClick={() => events.length ? setRunning(value => !value) : run()}>{loading ? <span className="spinner"/> : running ? <Pause size={15}/> : <Play size={15}/>} {loading ? 'Tracing…' : events.length ? running ? 'Pause' : 'Resume' : 'Run code'}</button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(i => Math.min(events.length - 1, i + 1)); }} title="Next step" aria-label="Next step"><ChevronRight size={18}/></button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(events.length - 1); }} title="Jump to last step" aria-label="Jump to last step"><SkipForward size={16}/></button></div>
-          <label className="speed-control">Speed <input aria-label="Playback speed" type="range" min="80" max="1200" step="40" value={1200 - speed} onChange={e => setSpeed(1200 - Number(e.target.value))}/></label>
+    <header>
+      <div className="brand">
+        <div className="logo">CN</div>
+        <div>
+          <h1>ChronoNode</h1>
+          <span>Python DSA visualizer</span>
         </div>
-        <div className="panes"><div className="editor-pane"><div className="pane-head"><span>main.py</span><span className="python">PYTHON</span></div><Editor height="100%" language="python" theme="vs-dark" value={code} onChange={value => { setCode(value || ''); setEvents([]); setIndex(0); setRunning(false); }} onMount={editor => { codeEditor.current = editor; }} options={{ minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, automaticLayout: true, glyphMargin: true, ariaLabel: 'Python source code editor' }}/></div>
-          <div className="visual-pane"><div className="visual-head"><div><span className="eyebrow">EXECUTION VISUALIZATION</span><h2>{event?.structure || 'Ready to trace'}</h2></div><span className="step">{events.length ? `Step ${index + 1} / ${events.length}` : 'No trace yet'}</span></div>
-            <PanZoomCanvas><VisualErrorBoundary key={event?.step ?? 0}><Visual event={event} animate={animate} source={code}/></VisualErrorBoundary></PanZoomCanvas><div className="legend" aria-label="Visualization legend"><span><i className="legend-compare"/>Comparison</span><span><i className="legend-change"/>Changed value</span><span><i className="legend-pointer"/>Current pointer</span></div>
-            <div className="timeline" aria-label="Execution timeline"><div className="progress" style={{ width: `${progress}%` }}/><input aria-label="Jump to execution step" className="timeline-range" type="range" min="0" max={Math.max(0, events.length - 1)} value={index} disabled={!events.length} onChange={e => { setRunning(false); setIndex(Number(e.target.value)); }}/><div className="timeline-labels"><span>{events.length ? `#${index + 1} · line ${event?.line || '—'}` : 'Run to create steps'}</span><span>{events.length ? `${events.length} events` : '← → keys step · Space plays'}</span></div></div>
-            <div className="explain"><span className="event-chip">{matchMessage ? 'MATCH' : (event?.eventType || 'READY')}</span><div className="event-description"><b>{matchMessage ? `✓ ${matchMessage} · ${event?.explanation || ''}` : (event?.explanation || 'Run your Python code to record its actual operations')}</b><small>{event?.statement || 'The source line and exact state will appear here.'}</small></div></div>
+      </div>
+      <div className="header-actions">
+        <button className={`ghost ${tab === 'algorithms' ? 'active-header-btn' : ''}`} onClick={() => setTab('algorithms')} aria-label="Learning resources">
+          <BookOpen size={16}/> Learn
+        </button>
+        <button className={`ghost ${tab === 'editor' ? 'active-header-btn' : ''}`} onClick={() => setTab('editor')} aria-label="Python playground">
+          <Code2 size={16}/> Playground
+        </button>
+      </div>
+    </header>
+    <main>
+      <aside className="sidebar">
+        <div className="side-title">WORKSPACE</div>
+        <button className={`nav ${tab === 'editor' ? 'active' : ''}`} onClick={() => setTab('editor')}><Code2/> Editor</button>
+        <button className={`nav ${tab === 'algorithms' ? 'active' : ''}`} onClick={() => setTab('algorithms')}><GitBranch/> Algorithms</button>
+        <button className={`nav ${tab === 'data-structures' ? 'active' : ''}`} onClick={() => setTab('data-structures')}><Layers/> Data structures</button>
+        <div className="side-title samples">SAMPLES</div>
+        {Object.keys(samples).map(name => (
+          <button
+            className={`sample ${sample === name && tab === 'editor' ? 'selected' : ''}`}
+            onClick={() => {
+              setTab('editor');
+              setSample(name);
+              setCode(samples[name]);
+              setEvents([]);
+              setIndex(0);
+            }}
+            key={name}
+          >
+            {name}
+          </button>
+        ))}
+      </aside>
+      {tab === 'algorithms' || tab === 'data-structures' ? (
+        <AlgorithmsPanel
+          onLoadCode={(newCode) => {
+            setCode(newCode);
+            setEvents([]);
+            setIndex(0);
+            setRunning(false);
+            setTab('editor');
+          }}
+        />
+      ) : (
+        <section className="workspace">
+          <div className="toolbar"><label className="sample-select-label" htmlFor="sample-select">Example</label><select id="sample-select" value={sample} onChange={e => { setSample(e.target.value); setCode(samples[e.target.value]); setEvents([]); setIndex(0); }}>{Object.keys(samples).map(name => <option key={name}>{name}</option>)}</select>
+            <div className="run-controls"><button disabled={!events.length} onClick={() => { setRunning(false); setIndex(0); }} title="Restart replay" aria-label="Restart replay"><RotateCcw size={16}/></button><button disabled={!events.length || index === 0} onClick={() => { setRunning(false); setIndex(i => Math.max(0, i - 1)); }} title="Previous step" aria-label="Previous step"><ChevronLeft size={18}/></button><button className="run" disabled={loading} onClick={() => events.length ? setRunning(value => !value) : run()}>{loading ? <span className="spinner"/> : running ? <Pause size={15}/> : <Play size={15}/>} {loading ? 'Tracing…' : events.length ? running ? 'Pause' : 'Resume' : 'Run code'}</button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(i => Math.min(events.length - 1, i + 1)); }} title="Next step" aria-label="Next step"><ChevronRight size={18}/></button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(events.length - 1); }} title="Jump to last step" aria-label="Jump to last step"><SkipForward size={16}/></button></div>
+            <label className="speed-control">Speed <input aria-label="Playback speed" type="range" min="80" max="1200" step="40" value={1200 - speed} onChange={e => setSpeed(1200 - Number(e.target.value))}/></label>
           </div>
-        </div>
-        <div className="bottom">
-          <AuxiliaryStructures event={event} source={code}/>
-          <section className="bottom-section"><div className="section-heading"><span className="eyebrow">VARIABLES · {event?.function || '—'}()</span>{event && <span className="depth-pill">depth {event.depth}</span>}</div>{Object.keys(variables).length ? <div className="vars">{Object.entries(variables).map(([key, value]) => <div className="var" key={key}><code>{key}</code><span title={pretty(value)}>{pretty(value)}</span></div>)}</div> : <p className="muted">Variables at this execution point will appear here.</p>}</section>
-          <section className="bottom-section call-stack-section"><span className="eyebrow">CALL STACK</span>{event?.callStack.length ? <div className="call-stack">{event.callStack.map((frame, i) => <div className={`call-frame ${i === event.callStack.length - 1 ? 'active-frame' : ''}`} key={`${frame.name}-${i}`}><b>{frame.name}()</b><span>line {frame.line}</span><small>{Object.entries(frame.arguments).map(([k, v]) => `${k}=${pretty(v)}`).join(', ')}</small></div>)}</div> : <p className="muted">No active function calls at this step.</p>}</section>
-          <section className="bottom-section event-meta"><span className="eyebrow">SOURCE & OPERATION</span><p className="source-statement"><code>{event?.line ? `${event.line}: ` : ''}{event?.statement || 'Waiting for execution'}</code></p><p className="muted">{event?.operation || '—'}{event?.returnValue !== undefined ? ` · returns ${pretty(event.returnValue)}` : ''}{event?.focus.result ? ` · branch ${event.focus.result}` : ''}{matchMessage ? ` · ✓ ${matchMessage}` : ''}</p>{matchMessage && <div className="operation-status-badge" aria-label="Operation status">✓ {matchMessage}</div>}{event?.lineComplexity && <div className="line-complexity" aria-label="Time and space cost for this step"><span>Time <b>{event.lineComplexity.time && event.lineComplexity.time !== 'O(?)' && event.lineComplexity.time !== '?' ? event.lineComplexity.time : 'O(1)'}</b> · {event.lineComplexity.timeDetails && !event.lineComplexity.timeDetails.includes('not covered') && !event.lineComplexity.timeDetails.includes('O(?)') ? event.lineComplexity.timeDetails : 'Scalar operation'}</span><br/><span>Space <b>{event.lineComplexity.space && event.lineComplexity.space !== 'O(?)' && event.lineComplexity.space !== '?' ? event.lineComplexity.space : 'O(1)'}</b> · {event.lineComplexity.spaceDetails && !event.lineComplexity.spaceDetails.includes('not covered') && !event.lineComplexity.spaceDetails.includes('O(?)') ? event.lineComplexity.spaceDetails : 'No additional auxiliary elements'}</span></div>}{event?.output && <pre className="event-output">{event.output}</pre>}<label className="toggle"><input type="checkbox" checked={animate} onChange={e => setAnimate(e.target.checked)}/> Animate changed values</label><button className="states-toggle" onClick={() => setShowStates(open => !open)}>{showStates ? 'Hide' : 'Inspect'} before / after state</button></section>
-        </div>
-        {showStates && event && <div className="state-comparison"><div><span className="eyebrow">BEFORE THIS EVENT</span><pre>{beforeText}</pre></div><div><span className="eyebrow">AFTER THIS EVENT</span><pre>{afterText}</pre></div></div>}
-        {error && <div className="toast error"><AlertCircle size={18}/>{error}</div>}
-      </section>
+          <div className="panes"><div className="editor-pane"><div className="pane-head"><span>main.py</span><span className="python">PYTHON</span></div><Editor height="100%" language="python" theme="vs-dark" value={code} onChange={value => { setCode(value || ''); setEvents([]); setIndex(0); setRunning(false); }} onMount={editor => { codeEditor.current = editor; }} options={{ minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, automaticLayout: true, glyphMargin: true, ariaLabel: 'Python source code editor' }}/></div>
+            <div className="visual-pane"><div className="visual-head"><div><span className="eyebrow">EXECUTION VISUALIZATION</span><h2>{event?.structure || 'Ready to trace'}</h2></div><span className="step">{events.length ? `Step ${index + 1} / ${events.length}` : 'No trace yet'}</span></div>
+              <PanZoomCanvas><VisualErrorBoundary key={event?.step ?? 0}><Visual event={event} animate={animate} source={code}/></VisualErrorBoundary></PanZoomCanvas><div className="legend" aria-label="Visualization legend"><span><i className="legend-compare"/>Comparison</span><span><i className="legend-change"/>Changed value</span><span><i className="legend-pointer"/>Current pointer</span></div>
+              <div className="timeline" aria-label="Execution timeline"><div className="progress" style={{ width: `${progress}%` }}/><input aria-label="Jump to execution step" className="timeline-range" type="range" min="0" max={Math.max(0, events.length - 1)} value={index} disabled={!events.length} onChange={e => { setRunning(false); setIndex(Number(e.target.value)); }}/><div className="timeline-labels"><span>{events.length ? `#${index + 1} · line ${event?.line || '—'}` : 'Run to create steps'}</span><span>{events.length ? `${events.length} events` : '← → keys step · Space plays'}</span></div></div>
+              <div className="explain"><span className="event-chip">{matchMessage ? 'MATCH' : (event?.eventType || 'READY')}</span><div className="event-description"><b>{matchMessage ? `✓ ${matchMessage} · ${event?.explanation || ''}` : (event?.explanation || 'Run your Python code to record its actual operations')}</b><small>{event?.statement || 'The source line and exact state will appear here.'}</small></div></div>
+            </div>
+          </div>
+          <div className="bottom">
+            <AuxiliaryStructures event={event} source={code}/>
+            <section className="bottom-section"><div className="section-heading"><span className="eyebrow">VARIABLES · {event?.function || '—'}()</span>{event && <span className="depth-pill">depth {event.depth}</span>}</div>{Object.keys(variables).length ? <div className="vars">{Object.entries(variables).map(([key, value]) => <div className="var" key={key}><code>{key}</code><span title={pretty(value)}>{pretty(value)}</span></div>)}</div> : <p className="muted">Variables at this execution point will appear here.</p>}</section>
+            <section className="bottom-section call-stack-section"><span className="eyebrow">CALL STACK</span>{event?.callStack.length ? <div className="call-stack">{event.callStack.map((frame, i) => <div className={`call-frame ${i === event.callStack.length - 1 ? 'active-frame' : ''}`} key={`${frame.name}-${i}`}><b>{frame.name}()</b><span>line {frame.line}</span><small>{Object.entries(frame.arguments).map(([k, v]) => `${k}=${pretty(v)}`).join(', ')}</small></div>)}</div> : <p className="muted">No active function calls at this step.</p>}</section>
+            <section className="bottom-section event-meta"><span className="eyebrow">SOURCE & OPERATION</span><p className="source-statement"><code>{event?.line ? `${event.line}: ` : ''}{event?.statement || 'Waiting for execution'}</code></p><p className="muted">{event?.operation || '—'}{event?.returnValue !== undefined ? ` · returns ${pretty(event.returnValue)}` : ''}{event?.focus.result ? ` · branch ${event.focus.result}` : ''}{matchMessage ? ` · ✓ ${matchMessage}` : ''}</p>{matchMessage && <div className="operation-status-badge" aria-label="Operation status">✓ {matchMessage}</div>}{event?.lineComplexity && <div className="line-complexity" aria-label="Time and space cost for this step"><span>Time <b>{event.lineComplexity.time && event.lineComplexity.time !== 'O(?)' && event.lineComplexity.time !== '?' ? event.lineComplexity.time : 'O(1)'}</b> · {event.lineComplexity.timeDetails && !event.lineComplexity.timeDetails.includes('not covered') && !event.lineComplexity.timeDetails.includes('O(?)') ? event.lineComplexity.timeDetails : 'Scalar operation'}</span><br/><span>Space <b>{event.lineComplexity.space && event.lineComplexity.space !== 'O(?)' && event.lineComplexity.space !== '?' ? event.lineComplexity.space : 'O(1)'}</b> · {event.lineComplexity.spaceDetails && !event.lineComplexity.spaceDetails.includes('not covered') && !event.lineComplexity.spaceDetails.includes('O(?)') ? event.lineComplexity.spaceDetails : 'No additional auxiliary elements'}</span></div>}{event?.output && <pre className="event-output">{event.output}</pre>}<label className="toggle"><input type="checkbox" checked={animate} onChange={e => setAnimate(e.target.checked)}/> Animate changed values</label><button className="states-toggle" onClick={() => setShowStates(open => !open)}>{showStates ? 'Hide' : 'Inspect'} before / after state</button></section>
+          </div>
+          {showStates && event && <div className="state-comparison"><div><span className="eyebrow">BEFORE THIS EVENT</span><pre>{beforeText}</pre></div><div><span className="eyebrow">AFTER THIS EVENT</span><pre>{afterText}</pre></div></div>}
+          {error && <div className="toast error"><AlertCircle size={18}/>{error}</div>}
+        </section>
+      )}
     </main>
   </div>;
 }
