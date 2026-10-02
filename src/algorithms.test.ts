@@ -304,6 +304,35 @@ describe('Algorithms Registry', () => {
         expect(embeddedVisualizerTsx).toContain('embedded-code-pane');
         expect(embeddedVisualizerTsx).toContain('embedded-visual-pane');
       });
+
+      it('unifies visualizer layout to be a 1:1 pixel-perfect match with the main Editor workspace', () => {
+        // 1. Toolbar standardization: strips out custom header, implements main editor toolbar
+        expect(embeddedVisualizerTsx).not.toContain('LIVE PLAYGROUND');
+        expect(embeddedVisualizerTsx).not.toContain('embedded-visualizer-header');
+        expect(embeddedVisualizerTsx).toContain('className="toolbar"');
+        expect(embeddedVisualizerTsx).toContain('className="run-controls"');
+        expect(embeddedVisualizerTsx).toContain('className="speed-control"');
+        expect(embeddedVisualizerTsx).toContain('className="reset-code-btn"');
+
+        // 2. Panes and canvas alignment
+        expect(embeddedVisualizerTsx).toContain('className="panes embedded-panes embedded-split-workspace"');
+        expect(embeddedVisualizerTsx).toContain('className="visual-canvas-container canvas"');
+        expect(embeddedVisualizerTsx).toContain('<ComplexityOdometer events={events} currentIndex={index} />');
+
+        // 3. Legend horizontally centered directly below canvas container
+        expect(embeddedVisualizerTsx).toContain('className="legend" aria-label="Visualization legend"');
+        expect(algorithmsCss).toMatch(/\.embedded-workspace\s+\.legend\s*\{[^}]*display:\s*flex;/);
+        expect(algorithmsCss).toMatch(/\.embedded-workspace\s+\.legend\s*\{[^}]*justify-content:\s*center;/);
+
+        // 4. Full-width 3-column bottom panel matching main workspace
+        expect(embeddedVisualizerTsx).toContain('className="bottom"');
+        expect(embeddedVisualizerTsx).toContain('VARIABLES ·');
+        expect(embeddedVisualizerTsx).toContain('className="bottom-section call-stack-section"');
+        expect(embeddedVisualizerTsx).toContain('CALL STACK');
+        expect(embeddedVisualizerTsx).toContain('className="bottom-section event-meta"');
+        expect(embeddedVisualizerTsx).toContain('SOURCE & OPERATION');
+        expect(embeddedVisualizerTsx).toContain('className="state-comparison"');
+      });
     });
 
     describe('2. Visualizer Engine Integration', () => {
