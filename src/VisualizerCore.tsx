@@ -1,41 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createRoot } from 'react-dom/client';
-import Editor from '@monaco-editor/react';
-import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, Code2, GitBranch, Layers, Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
-import { tracePython, type TraceEvent } from './trace';
+import React from 'react';
+import { AlertCircle } from 'lucide-react';
+import type { TraceEvent } from './trace';
 import { resolveVisualizerRoute, type VisualizerRoute } from './visualizer-routing';
-import { PanZoomCanvas } from './PanZoomCanvas';
-import { AlgorithmsPanel } from './AlgorithmsPanel';
-import { AlgorithmDetailPage } from './AlgorithmDetailPage';
-import { allAlgorithms, type AlgorithmData } from './data/algorithms';
-import './styles.css';
-import './algorithms.css';
-import './deque.css';
-import './graph.css';
-import './matrix.css';
-import './motion.css';
-import './linked.css';
 
-const samples: Record<string, string> = {
-  'Binary search': `values = [2, 5, 8, 12, 16, 21, 30]\ntarget = 16\nleft, right = 0, len(values) - 1\nwhile left <= right:\n    middle = (left + right) // 2\n    if values[middle] == target:\n        print("found", middle)\n        break\n    elif values[middle] < target:\n        left = middle + 1\n    else:\n        right = middle - 1`,
-  'Bubble sort': `values = [7, 3, 9, 1, 5]\nfor end in range(len(values) - 1, 0, -1):\n    for index in range(end):\n        if values[index] > values[index + 1]:\n            values[index], values[index + 1] = values[index + 1], values[index]\nprint(values)`,
-  'Selection sort': `values = [8, 4, 6, 2, 9]\nfor start in range(len(values)):\n    smallest = start\n    for index in range(start + 1, len(values)):\n        if values[index] < values[smallest]:\n            smallest = index\n    values[start], values[smallest] = values[smallest], values[start]`,
-  'Insertion sort': `values = [7, 3, 9, 1, 5]\nfor index in range(1, len(values)):\n    current = values[index]\n    position = index\n    while position > 0 and values[position - 1] > current:\n        values[position] = values[position - 1]\n        position -= 1\n    values[position] = current\nprint(values)`,
-  'Stack': `stack = []\nstack.append("learn")\nstack.append("build")\ntop = stack[-1]\nitem = stack.pop()\nprint(item)`,
-  'Queue': `from collections import deque\nqueue = deque(["first", "second"])\nqueue.append("third")\ncurrent = queue.popleft()\nprint(current)`,
-  'Deque': `from collections import deque\nworklist = deque(["middle"])\nworklist.appendleft("front")\nworklist.append("rear")\nleft_item = worklist.popleft()\nright_item = worklist.pop()\nprint(left_item, right_item)`,
-  'Recursion': `def factorial(n):\n    if n <= 1:\n        return 1\n    return n * factorial(n - 1)\n\nanswer = factorial(4)\nprint(answer)`,
-  'Graph BFS': `from collections import deque\ngraph = {"A": ["B", "C"], "B": ["D"], "C": ["E"], "D": [], "E": []}\nvisited = {"A"}\nqueue = deque(["A"])\nwhile queue:\n    node = queue.popleft()\n    for neighbor in graph[node]:\n        if neighbor not in visited:\n            visited.add(neighbor)\n            queue.append(neighbor)`,
-  'Dijkstra': `import heapq\ngraph = {"A": {"B": 4, "C": 2}, "B": {"A": 4, "C": 1, "D": 5}, "C": {"A": 2, "B": 1, "D": 8}, "D": {"B": 5, "C": 8}}\ndistances = {"A": 0}\nprevious = {}\nfrontier = [(0, "A")]\nwhile frontier:\n    distance, node = heapq.heappop(frontier)\n    if distance > distances.get(node, float("inf")):\n        continue\n    for neighbor, weight in graph[node].items():\n        candidate = distance + weight\n        if candidate < distances.get(neighbor, float("inf")):\n            distances[neighbor] = candidate\n            previous[neighbor] = node\n            heapq.heappush(frontier, (candidate, neighbor))\nprint(distances)`,
-  'DP table': `cost = [[0 for _ in range(4)] for _ in range(3)]\nfor row in range(3):\n    for col in range(4):\n        if row == 0 or col == 0:\n            cost[row][col] = 1\n        else:\n            cost[row][col] = cost[row - 1][col] + cost[row][col - 1]`,
-  'String search': `text = "trace the pattern"\npattern = "pattern"\nfor index in range(len(text) - len(pattern) + 1):\n    if text[index:index + len(pattern)] == pattern:\n        found_at = index\n        break`,
-  'Linked list': `class Node:\n    def __init__(self, value):\n        self.value = value\n        self.next = None\nhead = Node(10)\nhead.next = Node(20)\nhead.next.next = Node(30)\ncurrent = head\nwhile current:\n    current = current.next`,
-  'Binary tree': `class Node:\n    def __init__(self, value):\n        self.value = value\n        self.left = None\n        self.right = None\nroot = Node(8)\nroot.left = Node(3)\nroot.right = Node(11)\nroot.left.left = Node(1)\ncurrent = root\ntarget = 3\nif target < current.value:\n    current = current.left`,
-  'Hash table': `hash_table = {}\nhash_table["Ada"] = 90\nhash_table["Lin"] = 95\nscore = hash_table.get("Ada")\ndel hash_table["Ada"]`,
-  'Heap': `import heapq\nheap = [7, 2, 8, 1]\nheapq.heapify(heap)\nheapq.heappush(heap, 3)\nsmallest = heapq.heappop(heap)`,
-};
-const initial = samples['Binary search'];
-const pretty = (value: unknown): string => {
+export const pretty = (value: unknown): string => {
   if (typeof value === 'string') return value;
   if (value === null || typeof value !== 'object') return String(value);
   if (Array.isArray(value)) return `[${value.slice(0, 6).map(pretty).join(', ')}${value.length > 6 ? ', …' : ''}]`;
@@ -46,7 +14,7 @@ const pretty = (value: unknown): string => {
   return `${String(record.__type__ ?? 'Object')} · ${entries.length} field${entries.length === 1 ? '' : 's'}`;
 };
 
-function findArray(state: Record<string, unknown>, structure: string, source: string): [string, unknown[]] | undefined {
+export function findArray(state: Record<string, unknown>, structure: string, source: string): [string, unknown[]] | undefined {
   const entries = Object.entries(state);
   const annotationName = source.match(/@visualize\s+[\w-]+\s+(\w+)/i)?.[1];
   if (annotationName && Array.isArray(state[annotationName])) return [annotationName, state[annotationName] as unknown[]];
@@ -64,7 +32,7 @@ function findArray(state: Record<string, unknown>, structure: string, source: st
   return [any[0], any[1] as unknown[]];
 }
 
-function structureItemLabel(value: unknown): string {
+export function structureItemLabel(value: unknown): string {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return String(value);
   const record = value as Record<string, unknown>;
   const nodeValue = record.key ?? record.val ?? record.value ?? record.data;
@@ -76,19 +44,19 @@ function structureItemLabel(value: unknown): string {
   return `Object · ${Object.keys(record).filter(key => !key.startsWith('__')).length} fields`;
 }
 
-function findString(state: Record<string, unknown>): [string, string] | undefined {
+export function findString(state: Record<string, unknown>): [string, string] | undefined {
   return Object.entries(state).find(([name, value]) => typeof value === 'string' && value.length > 0 && name !== '__name__') as [string, string] | undefined;
 }
 
-function findObject(state: Record<string, unknown>, field: string): [string, Record<string, unknown>] | undefined {
+export function findObject(state: Record<string, unknown>, field: string): [string, Record<string, unknown>] | undefined {
   return Object.entries(state).find(([, value]) => !!value && typeof value === 'object' && !Array.isArray(value) && field in value) as [string, Record<string, unknown>] | undefined;
 }
 
-function findTypedObject(state: Record<string, unknown>): [string, Record<string, unknown>] | undefined {
+export function findTypedObject(state: Record<string, unknown>): [string, Record<string, unknown>] | undefined {
   return Object.entries(state).find(([, value]) => !!value && typeof value === 'object' && !Array.isArray(value) && typeof (value as Record<string, unknown>).__type__ === 'string') as [string, Record<string, unknown>] | undefined;
 }
 
-function ArrayView({ event, value, name, animate }: { event: TraceEvent; value: unknown[]; name: string; animate: boolean }) {
+export function ArrayView({ event, value, name, animate }: { event: TraceEvent; value: unknown[]; name: string; animate: boolean }) {
   if (value.some(Array.isArray)) {
     const readCells = new Set((event.focus.readCells || []).map(([row, col]) => `${row},${col}`));
     const writeCells = new Set((event.focus.writeCells || []).map(([row, col]) => `${row},${col}`));
@@ -121,7 +89,7 @@ function ArrayView({ event, value, name, animate }: { event: TraceEvent; value: 
   </div>;
 }
 
-function GraphView({ event, graph }: { event: TraceEvent; graph: Record<string, unknown> }) {
+export function GraphView({ event, graph }: { event: TraceEvent; graph: Record<string, unknown> }) {
   const targetOf = (entry: unknown): string | undefined => {
     if (Array.isArray(entry)) return entry.length ? String(entry[0]) : undefined;
     if (entry && typeof entry === 'object') {
@@ -197,7 +165,7 @@ function GraphView({ event, graph }: { event: TraceEvent; graph: Record<string, 
   </svg>;
 }
 
-function StackQueueView({ event, values, structure }: { event: TraceEvent; values: unknown[]; structure: string }) {
+export function StackQueueView({ event, values, structure }: { event: TraceEvent; values: unknown[]; structure: string }) {
   const isStack = structure === 'stack';
   const isDeque = structure === 'deque';
   const operation = event.operation;
@@ -216,17 +184,15 @@ function StackQueueView({ event, values, structure }: { event: TraceEvent; value
   </div>;
 }
 
-function StringView({ event, name, value, state, animate }: { event: TraceEvent; name: string; value: string; state?: Record<string, unknown>; animate: boolean }) {
+export function StringView({ event, name, value, state, animate }: { event: TraceEvent; name: string; value: string; state?: Record<string, unknown>; animate: boolean }) {
   const activeIndices = new Set(event.focus.indices || []);
   const comparing = event.eventType === 'compare' || event.operation === 'compare';
   const currentState = state || event.afterState || event.state || {};
 
-  // Track pointer movements (e.g. index, idx, i, j, start, left, right, position)
   const pointerNames = ['index', 'idx', 'i', 'j', 'start', 'left', 'right', 'position'];
   const pointerEntry = Object.entries(event.variables).find(([k, v]) => pointerNames.includes(k) && typeof v === 'number');
   const pointerIndex = pointerEntry ? (pointerEntry[1] as number) : (typeof currentState.index === 'number' ? (currentState.index as number) : undefined);
 
-  // Track matched pattern
   const foundAt = typeof event.variables.found_at === 'number' ? (event.variables.found_at as number) : (typeof event.variables.found === 'number' ? (event.variables.found as number) : undefined);
   const isBranchTaken = event.focus.result === 'taken';
   const patternValue = typeof currentState.pattern === 'string' ? (currentState.pattern as string) : undefined;
@@ -241,7 +207,6 @@ function StringView({ event, name, value, state, animate }: { event: TraceEvent;
     }
   }
 
-  // Find secondary strings, e.g. pattern
   const secondaryString = Object.entries(currentState).find(([k, v]) => typeof v === 'string' && k !== name && !k.startsWith('__') && v.length > 0) as [string, string] | undefined;
 
   return (
@@ -295,7 +260,7 @@ function StringView({ event, name, value, state, animate }: { event: TraceEvent;
   );
 }
 
-function LinkedListView({ event, root }: { event: TraceEvent; root: Record<string, unknown> }) {
+export function LinkedListView({ event, root }: { event: TraceEvent; root: Record<string, unknown> }) {
   const chain: Array<Record<string, unknown>> = [];
   const seen = new Set<object>();
   let current: any = root;
@@ -331,7 +296,7 @@ function LinkedListView({ event, root }: { event: TraceEvent; root: Record<strin
   </div>;
 }
 
-function TreeView({ event, root }: { event: TraceEvent; root: Record<string, unknown> }) {
+export function TreeView({ event, root }: { event: TraceEvent; root: Record<string, unknown> }) {
   const nodes: Array<{ key: string; value: string; depth: number; position: number; parent?: string }> = [];
   const add = (node: any, path = '', parent?: string) => {
     if (!node || typeof node !== 'object' || !('__type__' in node) || nodes.length >= 63) return;
@@ -373,7 +338,7 @@ function TreeView({ event, root }: { event: TraceEvent; root: Record<string, unk
   </svg>;
 }
 
-function HeapView({ event, name, values }: { event: TraceEvent; name: string; values: unknown[] }) {
+export function HeapView({ event, name, values }: { event: TraceEvent; name: string; values: unknown[] }) {
   const width = 620, maxDepth = Math.min(5, Math.ceil(Math.log2(Math.max(values.length + 1, 2))));
   const point = (index: number) => { const depth = Math.floor(Math.log2(index + 1)); const first = 2 ** depth - 1; const position = index - first; return { x: width * (position + 1) / (2 ** depth + 1), y: 42 + depth * 67 }; };
   const focused = new Set(event.focus.indices || []);
@@ -404,12 +369,12 @@ function HeapView({ event, name, values }: { event: TraceEvent; name: string; va
   </div>;
 }
 
-function MappingView({ value }: { value: Record<string, unknown> }) {
+export function MappingView({ value }: { value: Record<string, unknown> }) {
   const entries = Object.entries(value).filter(([key]) => !key.startsWith('__'));
   return <div className="mapping-view">{entries.map(([key, val]) => <div className="mapping-entry" key={key}><code>{key}</code><span>→</span><b>{pretty(val)}</b></div>)}{!entries.length && <span className="muted">Empty mapping</span>}</div>;
 }
 
-function UnionFindView({ event, state }: { event: TraceEvent; state: Record<string, unknown> }) {
+export function UnionFindView({ event, state }: { event: TraceEvent; state: Record<string, unknown> }) {
   const parent = Object.entries(state).find(([name, value]) => /parent/i.test(name) && Array.isArray(value));
   if (!parent) {
     const mapping = Object.entries(state).find(([name, value]) => /parent/i.test(name) && !!value && typeof value === 'object' && !Array.isArray(value));
@@ -419,19 +384,19 @@ function UnionFindView({ event, state }: { event: TraceEvent; state: Record<stri
   return <div className="mapping-view union-find-view">{(parent[1] as unknown[]).map((root, index) => <div className={`mapping-entry ${active.has(index) ? 'is-focused' : ''}`} key={index}><code>{index}</code><span>→</span><b>{pretty(root)}</b></div>)}</div>;
 }
 
-function MathematicalView({ event, state }: { event: TraceEvent; state: Record<string, unknown> }) {
+export function MathematicalView({ event, state }: { event: TraceEvent; state: Record<string, unknown> }) {
   const values = Object.entries(state).filter(([, value]) => typeof value === 'number' || typeof value === 'boolean');
   return <div className="mapping-view mathematical-view"><div className="mapping-entry"><code>Operation</code><b>{event.statement || event.operation}</b></div>{values.map(([name, value]) => <div className="mapping-entry" key={name}><code>{name}</code><b>{String(value)}</b></div>)}{!values.length && <span className="muted">No numeric values captured</span>}</div>;
 }
 
-function RangeQueryView({ event, state, array, tree, animate }: { event: TraceEvent; state: Record<string, unknown>; array?: [string, unknown[]]; tree?: [string, Record<string, unknown>]; animate: boolean }) {
+export function RangeQueryView({ event, state, array, tree, animate }: { event: TraceEvent; state: Record<string, unknown>; array?: [string, unknown[]]; tree?: [string, Record<string, unknown>]; animate: boolean }) {
   if (array && tree) return <div className="range-query-view"><ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/><TreeView event={event} root={tree[1]}/></div>;
   if (array) return <ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/>;
   if (tree) return <TreeView event={event} root={tree[1]}/>;
   return <StateSummaryView state={state}/>;
 }
 
-function AuxiliaryStructures({ event, source }: { event?: TraceEvent; source: string }) {
+export function AuxiliaryStructures({ event, source }: { event?: TraceEvent; source: string }) {
   if (!event || ['stack', 'queue', 'deque'].includes(resolveVisualizerRoute(event.dataStructure))) return null;
   const state = event.afterState || event.state;
   const appended = new Set(Array.from(source.matchAll(/\b([A-Za-z_]\w*)\s*\.\s*(?:append|push)\s*\(/g), match => match[1]));
@@ -450,7 +415,7 @@ function AuxiliaryStructures({ event, source }: { event?: TraceEvent; source: st
   })}</section>;
 }
 
-function StateSummaryView({ state }: { state: Record<string, unknown> }) {
+export function StateSummaryView({ state }: { state: Record<string, unknown> }) {
   const entries = Object.entries(state).filter(([name]) => !name.startsWith('__'));
   return <div className="mapping-view state-view">
     {entries.map(([name, value]) => <div className="mapping-entry" key={name}><code>{name}</code><span>:</span><b>{pretty(value)}</b></div>)}
@@ -458,15 +423,15 @@ function StateSummaryView({ state }: { state: Record<string, unknown> }) {
   </div>;
 }
 
-function BitwiseView({ state }: { state: Record<string, unknown> }) {
+export function BitwiseView({ state }: { state: Record<string, unknown> }) {
   const registers = Object.entries(state).filter(([, value]) => typeof value === 'number' && Number.isInteger(value));
   return <div className="mapping-view bitwise-view">
     {registers.map(([name, value]) => <div className="mapping-entry" key={name}><code>{name}</code><span>=</span><b>{String(value)}</b><code>{(value as number).toString(2)}</code></div>)}
-    {!registers.length && <StateSummaryView state={state}/ >}
+    {!registers.length && <StateSummaryView state={state}/>}
   </div>;
 }
 
-function GeometryView({ state }: { state: Record<string, unknown> }) {
+export function GeometryView({ state }: { state: Record<string, unknown> }) {
   const entry = Object.entries(state).find(([name, value]) => /point|coordinate/i.test(name) && Array.isArray(value) && value.every(point => Array.isArray(point) && point.length >= 2 && point.slice(0, 2).every(Number.isFinite)))
     || Object.entries(state).find(([, value]) => Array.isArray(value) && value.length > 0 && value.every(point => Array.isArray(point) && point.length >= 2 && point.slice(0, 2).every(Number.isFinite)));
   if (!entry) return <StateSummaryView state={state}/>;
@@ -484,17 +449,17 @@ function GeometryView({ state }: { state: Record<string, unknown> }) {
   </svg>;
 }
 
-function RecursionView({ event }: { event: TraceEvent }) {
+export function RecursionView({ event }: { event: TraceEvent }) {
   return <div className="recursion-view call-stack">
     {event.callStack.map((frame, index) => <div className={`call-frame ${index === event.callStack.length - 1 ? 'active-frame' : ''}`} key={`${frame.name}-${index}`}><b>{frame.name}()</b><span>line {frame.line}</span><small>{Object.entries(frame.arguments).map(([name, value]) => `${name}=${pretty(value)}`).join(', ')}</small></div>)}
     {!event.callStack.length && <span className="muted">No active recursive calls</span>}
   </div>;
 }
 
-type VisualErrorBoundaryProps = { children: React.ReactNode };
-type VisualErrorBoundaryState = { failed: boolean };
+export type VisualErrorBoundaryProps = { children: React.ReactNode };
+export type VisualErrorBoundaryState = { failed: boolean };
 
-class VisualErrorBoundary extends React.Component<VisualErrorBoundaryProps, VisualErrorBoundaryState> {
+export class VisualErrorBoundary extends React.Component<VisualErrorBoundaryProps, VisualErrorBoundaryState> {
   state: VisualErrorBoundaryState = { failed: false };
 
   static getDerivedStateFromError(): VisualErrorBoundaryState {
@@ -511,7 +476,7 @@ class VisualErrorBoundary extends React.Component<VisualErrorBoundaryProps, Visu
   }
 }
 
-function GenericDebuggerView({ event, state }: { event: TraceEvent; state: Record<string, unknown> }) {
+export function GenericDebuggerView({ event, state }: { event: TraceEvent; state: Record<string, unknown> }) {
   const locals = Object.entries(event.variables || {}).filter(([k]) => !k.startsWith('__'));
   const globals = Object.entries(event.globals || {}).filter(([k]) => !k.startsWith('__') && !k.startsWith('_'));
   const beforeState = event.beforeState || {};
@@ -578,7 +543,7 @@ function GenericDebuggerView({ event, state }: { event: TraceEvent; state: Recor
   );
 }
 
-function Visual({ event, animate, source }: { event?: TraceEvent; animate: boolean; source: string }) {
+export function Visual({ event, animate, source }: { event?: TraceEvent; animate: boolean; source: string }) {
   if (!event) return <div className="empty">Run your Python code to record its execution.</div>;
   if (event.eventType === 'error') {
     return (
@@ -628,245 +593,3 @@ function Visual({ event, animate, source }: { event?: TraceEvent; animate: boole
   };
   return routes[route]();
 }
-
-function App() {
-  const [tab, setTab] = useState<'editor' | 'algorithms' | 'data-structures'>('editor');
-  const [selectedAlgorithm, setSelectedAlgorithm] = useState<AlgorithmData | null>(null);
-  const [code, setCode] = useState(initial);
-  const [events, setEvents] = useState<TraceEvent[]>([]);
-  const [index, setIndex] = useState(0);
-  const [running, setRunning] = useState(false);
-  const [speed, setSpeed] = useState(500);
-  const [sample, setSample] = useState('Binary search');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [animate, setAnimate] = useState(true);
-  const [showStates, setShowStates] = useState(false);
-  const codeEditor = useRef<any>(null);
-  const decorations = useRef<string[]>([]);
-  const event = events[index];
-  const variables = event?.variables || {};
-
-  // Deep linking and browser history / hash sync
-  useEffect(() => {
-    const handleHash = () => {
-      const hash = window.location.hash;
-      const match = hash.match(/#\/?algorithms\/([a-z0-9-]+)/i);
-      if (match) {
-        const found = allAlgorithms.find((a) => a.id === match[1]);
-        if (found) {
-          setSelectedAlgorithm(found);
-          setTab('algorithms');
-        }
-      } else if (!hash || hash === '#') {
-        setSelectedAlgorithm(null);
-      }
-    };
-    handleHash();
-    window.addEventListener('hashchange', handleHash);
-    window.addEventListener('popstate', handleHash);
-    return () => {
-      window.removeEventListener('hashchange', handleHash);
-      window.removeEventListener('popstate', handleHash);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!running || events.length < 1) return;
-    const timer = window.setTimeout(() => {
-      if (index >= events.length - 1) {
-        setRunning(false);
-      } else {
-        const nextIndex = index + 1;
-        if (events[nextIndex]?.eventType === 'error') {
-          setRunning(false);
-        }
-        setIndex(nextIndex);
-      }
-    }, speed);
-    return () => window.clearTimeout(timer);
-  }, [running, index, events, speed]);
-
-  useEffect(() => {
-    if (event?.eventType === 'error' && running) {
-      setRunning(false);
-    }
-  }, [event?.eventType, running]);
-
-  useEffect(() => {
-    const editor = codeEditor.current;
-    if (!editor || !event?.line) return;
-    decorations.current = editor.deltaDecorations(decorations.current, [{
-      range: new (window as any).monaco.Range(event.line, 1, event.line, 1),
-      options: { isWholeLine: true, className: 'current-code-line', linesDecorationsClassName: 'code-line-marker' },
-    }]);
-    editor.revealLineInCenterIfOutsideViewport(event.line);
-  }, [event?.line]);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.closest('.monaco-editor') || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-      if (e.key === 'ArrowLeft') { e.preventDefault(); setRunning(false); setIndex(i => Math.max(0, i - 1)); }
-      if (e.key === 'ArrowRight' && events.length) { e.preventDefault(); setRunning(false); setIndex(i => Math.min(events.length - 1, i + 1)); }
-      if (e.key === ' ' && events.length) { e.preventDefault(); setRunning(r => !r); }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [events.length]);
-
-  const run = async () => {
-    setRunning(false); setLoading(true); setError('');
-    try { const result = await tracePython(code); setEvents(result); setIndex(0); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setLoading(false); }
-  };
-
-  const progress = events.length > 1 ? index / (events.length - 1) * 100 : events.length ? 100 : 0;
-  const beforeText = useMemo(() => event ? JSON.stringify(event.beforeState, null, 2) : '', [event]);
-  const afterText = useMemo(() => event ? JSON.stringify(event.afterState, null, 2) : '', [event]);
-
-  const matchMessage = useMemo(() => {
-    if (!event) return null;
-    const currentState = (event.afterState || event.state || {}) as Record<string, unknown>;
-    const foundAt = typeof event.variables?.found_at === 'number'
-      ? (event.variables.found_at as number)
-      : (typeof event.variables?.found === 'number' ? (event.variables.found as number) : undefined);
-    const comparing = event.eventType === 'compare' || event.operation === 'compare';
-    const isBranchTaken = event.focus?.result === 'taken';
-    const pointerNames = ['index', 'idx', 'i', 'j', 'start', 'left', 'right', 'position'];
-    const pointerEntry = Object.entries(event.variables || {}).find(([k, v]) => pointerNames.includes(k) && typeof v === 'number');
-    const pointerIndex = pointerEntry ? (pointerEntry[1] as number) : (typeof currentState.index === 'number' ? (currentState.index as number) : undefined);
-    const isMatchFound = foundAt !== undefined || (comparing && isBranchTaken && event.structure === 'string') || event.variables?.is_palindrome === true;
-    const matchStart = foundAt !== undefined ? foundAt : (isMatchFound && pointerIndex !== undefined ? pointerIndex : (event.focus?.indices?.[0] ?? -1));
-    if (isMatchFound && matchStart >= 0) {
-      return `Pattern matched at index ${matchStart}`;
-    }
-    return null;
-  }, [event]);
-
-  return <div className="app">
-    <header>
-      <div className="brand">
-        <div className="logo">CN</div>
-        <div>
-          <h1>ChronoNode</h1>
-          <span>Python DSA visualizer</span>
-        </div>
-      </div>
-      <div className="header-actions">
-        <button
-          className={`ghost ${tab === 'algorithms' && !selectedAlgorithm ? 'active-header-btn' : ''}`}
-          onClick={() => {
-            setSelectedAlgorithm(null);
-            setTab('algorithms');
-            if (window.location.hash.includes('algorithms/')) {
-              window.location.hash = '';
-            }
-          }}
-          aria-label="Learning resources"
-        >
-          <BookOpen size={16}/> Learn
-        </button>
-        <button
-          className={`ghost ${tab === 'editor' && !selectedAlgorithm ? 'active-header-btn' : ''}`}
-          onClick={() => {
-            setSelectedAlgorithm(null);
-            setTab('editor');
-            if (window.location.hash.includes('algorithms/')) {
-              window.location.hash = '';
-            }
-          }}
-          aria-label="Python playground"
-        >
-          <Code2 size={16}/> Playground
-        </button>
-      </div>
-    </header>
-
-    {selectedAlgorithm ? (
-      <AlgorithmDetailPage
-        algorithm={selectedAlgorithm}
-        onBack={() => {
-          setSelectedAlgorithm(null);
-          if (window.location.hash.includes('algorithms/')) {
-            window.location.hash = '';
-          }
-        }}
-        onLoadIntoWorkspace={(newCode) => {
-          setCode(newCode);
-          setEvents([]);
-          setIndex(0);
-          setRunning(false);
-          setSelectedAlgorithm(null);
-          setTab('editor');
-          window.location.hash = '';
-        }}
-      />
-    ) : (
-      <main>
-        <aside className="sidebar">
-          <div className="side-title">WORKSPACE</div>
-          <button className={`nav ${tab === 'editor' ? 'active' : ''}`} onClick={() => setTab('editor')}><Code2/> Editor</button>
-          <button className={`nav ${tab === 'algorithms' ? 'active' : ''}`} onClick={() => setTab('algorithms')}><GitBranch/> Algorithms</button>
-          <button className={`nav ${tab === 'data-structures' ? 'active' : ''}`} onClick={() => setTab('data-structures')}><Layers/> Data structures</button>
-          <div className="side-title samples">SAMPLES</div>
-          {Object.keys(samples).map(name => (
-            <button
-              className={`sample ${sample === name && tab === 'editor' ? 'selected' : ''}`}
-              onClick={() => {
-                setTab('editor');
-                setSample(name);
-                setCode(samples[name]);
-                setEvents([]);
-                setIndex(0);
-              }}
-              key={name}
-            >
-              {name}
-            </button>
-          ))}
-        </aside>
-        {tab === 'algorithms' || tab === 'data-structures' ? (
-          <AlgorithmsPanel
-            onSelectAlgorithm={(algo) => {
-              setSelectedAlgorithm(algo);
-              window.location.hash = `#/algorithms/${algo.id}`;
-            }}
-            onLoadCode={(newCode) => {
-              setCode(newCode);
-              setEvents([]);
-              setIndex(0);
-              setRunning(false);
-              setTab('editor');
-            }}
-          />
-        ) : (
-          <section className="workspace">
-            <div className="toolbar"><label className="sample-select-label" htmlFor="sample-select">Example</label><select id="sample-select" value={sample} onChange={e => { setSample(e.target.value); setCode(samples[e.target.value]); setEvents([]); setIndex(0); }}>{Object.keys(samples).map(name => <option key={name}>{name}</option>)}</select>
-              <div className="run-controls"><button disabled={!events.length} onClick={() => { setRunning(false); setIndex(0); }} title="Restart replay" aria-label="Restart replay"><RotateCcw size={16}/></button><button disabled={!events.length || index === 0} onClick={() => { setRunning(false); setIndex(i => Math.max(0, i - 1)); }} title="Previous step" aria-label="Previous step"><ChevronLeft size={18}/></button><button className="run" disabled={loading} onClick={() => events.length ? setRunning(value => !value) : run()}>{loading ? <span className="spinner"/> : running ? <Pause size={15}/> : <Play size={15}/>} {loading ? 'Tracing…' : events.length ? running ? 'Pause' : 'Resume' : 'Run code'}</button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(i => Math.min(events.length - 1, i + 1)); }} title="Next step" aria-label="Next step"><ChevronRight size={18}/></button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(events.length - 1); }} title="Jump to last step" aria-label="Jump to last step"><SkipForward size={16}/></button></div>
-              <label className="speed-control">Speed <input aria-label="Playback speed" type="range" min="80" max="1200" step="40" value={1200 - speed} onChange={e => setSpeed(1200 - Number(e.target.value))}/></label>
-            </div>
-            <div className="panes"><div className="editor-pane"><div className="pane-head"><span>main.py</span><span className="python">PYTHON</span></div><Editor height="100%" language="python" theme="vs-dark" value={code} onChange={value => { setCode(value || ''); setEvents([]); setIndex(0); setRunning(false); }} onMount={editor => { codeEditor.current = editor; }} options={{ minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, automaticLayout: true, glyphMargin: true, ariaLabel: 'Python source code editor' }}/></div>
-              <div className="visual-pane"><div className="visual-head"><div><span className="eyebrow">EXECUTION VISUALIZATION</span><h2>{event?.structure || 'Ready to trace'}</h2></div><span className="step">{events.length ? `Step ${index + 1} / ${events.length}` : 'No trace yet'}</span></div>
-                <PanZoomCanvas><VisualErrorBoundary key={event?.step ?? 0}><Visual event={event} animate={animate} source={code}/></VisualErrorBoundary></PanZoomCanvas><div className="legend" aria-label="Visualization legend"><span><i className="legend-compare"/>Comparison</span><span><i className="legend-change"/>Changed value</span><span><i className="legend-pointer"/>Current pointer</span></div>
-                <div className="timeline" aria-label="Execution timeline"><div className="progress" style={{ width: `${progress}%` }}/><input aria-label="Jump to execution step" className="timeline-range" type="range" min="0" max={Math.max(0, events.length - 1)} value={index} disabled={!events.length} onChange={e => { setRunning(false); setIndex(Number(e.target.value)); }}/><div className="timeline-labels"><span>{events.length ? `#${index + 1} · line ${event?.line || '—'}` : 'Run to create steps'}</span><span>{events.length ? `${events.length} events` : '← → keys step · Space plays'}</span></div></div>
-                <div className="explain"><span className="event-chip">{matchMessage ? 'MATCH' : (event?.eventType || 'READY')}</span><div className="event-description"><b>{matchMessage ? `✓ ${matchMessage} · ${event?.explanation || ''}` : (event?.explanation || 'Run your Python code to record its actual operations')}</b><small>{event?.statement || 'The source line and exact state will appear here.'}</small></div></div>
-              </div>
-            </div>
-            <div className="bottom">
-              <AuxiliaryStructures event={event} source={code}/>
-              <section className="bottom-section"><div className="section-heading"><span className="eyebrow">VARIABLES · {event?.function || '—'}()</span>{event && <span className="depth-pill">depth {event.depth}</span>}</div>{Object.keys(variables).length ? <div className="vars">{Object.entries(variables).map(([key, value]) => <div className="var" key={key}><code>{key}</code><span title={pretty(value)}>{pretty(value)}</span></div>)}</div> : <p className="muted">Variables at this execution point will appear here.</p>}</section>
-              <section className="bottom-section call-stack-section"><span className="eyebrow">CALL STACK</span>{event?.callStack.length ? <div className="call-stack">{event.callStack.map((frame, i) => <div className={`call-frame ${i === event.callStack.length - 1 ? 'active-frame' : ''}`} key={`${frame.name}-${i}`}><b>{frame.name}()</b><span>line {frame.line}</span><small>{Object.entries(frame.arguments).map(([k, v]) => `${k}=${pretty(v)}`).join(', ')}</small></div>)}</div> : <p className="muted">No active function calls at this step.</p>}</section>
-              <section className="bottom-section event-meta"><span className="eyebrow">SOURCE & OPERATION</span><p className="source-statement"><code>{event?.line ? `${event.line}: ` : ''}{event?.statement || 'Waiting for execution'}</code></p><p className="muted">{event?.operation || '—'}{event?.returnValue !== undefined ? ` · returns ${pretty(event.returnValue)}` : ''}{event?.focus.result ? ` · branch ${event.focus.result}` : ''}{matchMessage ? ` · ✓ ${matchMessage}` : ''}</p>{matchMessage && <div className="operation-status-badge" aria-label="Operation status">✓ {matchMessage}</div>}{event?.lineComplexity && <div className="line-complexity" aria-label="Time and space cost for this step"><span>Time <b>{event.lineComplexity.time && event.lineComplexity.time !== 'O(?)' && event.lineComplexity.time !== '?' ? event.lineComplexity.time : 'O(1)'}</b> · {event.lineComplexity.timeDetails && !event.lineComplexity.timeDetails.includes('not covered') && !event.lineComplexity.timeDetails.includes('O(?)') ? event.lineComplexity.timeDetails : 'Scalar operation'}</span><br/><span>Space <b>{event.lineComplexity.space && event.lineComplexity.space !== 'O(?)' && event.lineComplexity.space !== '?' ? event.lineComplexity.space : 'O(1)'}</b> · {event.lineComplexity.spaceDetails && !event.lineComplexity.spaceDetails.includes('not covered') && !event.lineComplexity.spaceDetails.includes('O(?)') ? event.lineComplexity.spaceDetails : 'No additional auxiliary elements'}</span></div>}{event?.output && <pre className="event-output">{event.output}</pre>}<label className="toggle"><input type="checkbox" checked={animate} onChange={e => setAnimate(e.target.checked)}/> Animate changed values</label><button className="states-toggle" onClick={() => setShowStates(open => !open)}>{showStates ? 'Hide' : 'Inspect'} before / after state</button></section>
-            </div>
-            {showStates && event && <div className="state-comparison"><div><span className="eyebrow">BEFORE THIS EVENT</span><pre>{beforeText}</pre></div><div><span className="eyebrow">AFTER THIS EVENT</span><pre>{afterText}</pre></div></div>}
-            {error && <div className="toast error"><AlertCircle size={18}/>{error}</div>}
-          </section>
-        )}
-      </main>
-    )}
-  </div>;
-}
-
-createRoot(document.getElementById('root')!).render(<App/>);

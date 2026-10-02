@@ -60,6 +60,28 @@ describe('Algorithms Registry', () => {
     }
   });
 
+  it('should generate deep educational tutorial content for any algorithm', async () => {
+    const { getEnrichedAlgorithm } = await import('./data/algorithms/enrichment');
+    const bubbleSort = ALL_ALGORITHMS.find(a => a.name === 'Bubble Sort')!;
+    const enriched = getEnrichedAlgorithm(bubbleSort);
+
+    expect(enriched.inDepthExplanation.length).toBeGreaterThan(100);
+    expect(enriched.concreteWalkthrough.inputExample).toBeTruthy();
+    expect(enriched.concreteWalkthrough.steps.length).toBeGreaterThanOrEqual(3);
+    for (const step of enriched.concreteWalkthrough.steps) {
+      expect(step.step).toBeGreaterThan(0);
+      expect(step.action).toBeTruthy();
+      expect(step.state).toBeTruthy();
+      expect(step.explanation).toBeTruthy();
+    }
+    expect(enriched.complexity.best).toBeTruthy();
+    expect(enriched.complexity.average).toBeTruthy();
+    expect(enriched.complexity.worst).toBeTruthy();
+    expect(enriched.complexity.breakdownExplanation).toBeTruthy();
+    expect(enriched.applications.length).toBeGreaterThan(0);
+    expect(enriched.edgeCases.length).toBeGreaterThan(0);
+  });
+
   it('should verify all required algorithms from user prompt master list are present', () => {
     const requiredNames = [
       // 1. Searching
