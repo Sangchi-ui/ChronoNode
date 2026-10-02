@@ -29,6 +29,7 @@ export const visualizerRoutes = {
   mathematical: 'mathematical',
   'range-query': 'range-query',
   variables: 'variables',
+  generic: 'generic',
 } as const;
 
 export type VisualizerRoute = typeof visualizerRoutes[keyof typeof visualizerRoutes];

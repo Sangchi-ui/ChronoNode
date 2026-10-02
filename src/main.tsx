@@ -507,9 +507,87 @@ class VisualErrorBoundary extends React.Component<VisualErrorBoundaryProps, Visu
   }
 }
 
+function GenericDebuggerView({ event, state }: { event: TraceEvent; state: Record<string, unknown> }) {
+  const locals = Object.entries(event.variables || {}).filter(([k]) => !k.startsWith('__'));
+  const globals = Object.entries(event.globals || {}).filter(([k]) => !k.startsWith('__') && !k.startsWith('_'));
+  const beforeState = event.beforeState || {};
+  const changedVars = new Set(
+    Object.keys(state).filter(k => JSON.stringify(beforeState[k]) !== JSON.stringify(state[k]))
+  );
+
+  const getType = (val: unknown): string => {
+    if (val === null) return 'None';
+    if (val === undefined) return 'undefined';
+    if (Array.isArray(val)) return `list[${val.length}]`;
+    if (typeof val === 'object') {
+      const rec = val as Record<string, unknown>;
+      if (rec.__type__) return String(rec.__type__);
+      return `dict[${Object.keys(rec).length}]`;
+    }
+    return typeof val;
+  };
+
+  const renderVarCard = (name: string, val: unknown) => {
+    const isChanged = changedVars.has(name);
+    const typeStr = getType(val);
+    return (
+      <div key={name} className={`debugger-var-card ${isChanged ? 'is-changed' : ''}`}>
+        <div className="debugger-var-header">
+          <code className="debugger-var-name">{name}</code>
+          <span className="debugger-var-type">{typeStr}</span>
+        </div>
+        <div className="debugger-var-value" title={pretty(val)}>
+          {pretty(val)}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="generic-debugger-view" aria-label="Debugger memory inspector">
+      <div className="debugger-section">
+        <div className="debugger-section-title">
+          <span>LOCAL VARIABLES</span>
+          <span className="debugger-scope-badge">{event.function || '<module>'}()</span>
+        </div>
+        {locals.length ? (
+          <div className="debugger-grid">
+            {locals.map(([k, v]) => renderVarCard(k, v))}
+          </div>
+        ) : (
+          <p className="debugger-empty">No local variables in current scope</p>
+        )}
+      </div>
+
+      {globals.length > 0 && (
+        <div className="debugger-section globals-section">
+          <div className="debugger-section-title">
+            <span>GLOBAL SCOPE</span>
+            <span className="debugger-scope-badge">module</span>
+          </div>
+          <div className="debugger-grid">
+            {globals.map(([k, v]) => renderVarCard(k, v))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Visual({ event, animate, source }: { event?: TraceEvent; animate: boolean; source: string }) {
   if (!event) return <div className="empty">Run your Python code to record its execution.</div>;
-  if (event.eventType === 'error') return <div className="error visual-error"><AlertCircle/> {event.explanation}</div>;
+  if (event.eventType === 'error') {
+    return (
+      <div className="error visual-error visual-error-banner" role="alert">
+        <AlertCircle size={28} className="error-icon" />
+        <div className="error-content">
+          <h4>Execution Error</h4>
+          <p className="error-message">{event.explanation || event.message || 'An error occurred during execution'}</p>
+          {event.line > 0 && <span className="error-line-badge">Line {event.line}: {event.statement}</span>}
+        </div>
+      </div>
+    );
+  }
   const route = resolveVisualizerRoute(event.dataStructure);
   const state = event.afterState || event.state;
   const annotatedName = source.match(/@visualize\s+[\w-]+\s+(\w+)/i)?.[1];
@@ -541,7 +619,8 @@ function Visual({ event, animate, source }: { event?: TraceEvent; animate: boole
     bitwise: () => <BitwiseView state={state}/>,
     geometry: () => <GeometryView state={state}/>,
     mathematical: () => <MathematicalView event={event} state={state}/>,
-    variables: () => <StateSummaryView state={state}/>,
+    variables: () => <GenericDebuggerView event={event} state={state}/>,
+    generic: () => <GenericDebuggerView event={event} state={state}/>,
   };
   return routes[route]();
 }
@@ -565,11 +644,24 @@ function App() {
   useEffect(() => {
     if (!running || events.length < 1) return;
     const timer = window.setTimeout(() => {
-      if (index >= events.length - 1) setRunning(false);
-      else setIndex(current => current + 1);
+      if (index >= events.length - 1) {
+        setRunning(false);
+      } else {
+        const nextIndex = index + 1;
+        if (events[nextIndex]?.eventType === 'error') {
+          setRunning(false);
+        }
+        setIndex(nextIndex);
+      }
     }, speed);
     return () => window.clearTimeout(timer);
-  }, [running, index, events.length, speed]);
+  }, [running, index, events, speed]);
+
+  useEffect(() => {
+    if (event?.eventType === 'error' && running) {
+      setRunning(false);
+    }
+  }, [event?.eventType, running]);
 
   useEffect(() => {
     const editor = codeEditor.current;
@@ -624,7 +716,7 @@ function App() {
   }, [event]);
 
   return <div className="app">
-    <header><div className="brand"><div className="logo">TF</div><div><h1>TraceForge</h1><span>Python DSA visualizer</span></div></div><div className="header-actions"><button className="ghost" aria-label="Learning resources"><BookOpen size={16}/> Learn</button><button className="ghost" aria-label="Python playground"><Code2 size={16}/> Playground</button></div></header>
+    <header><div className="brand"><div className="logo">CN</div><div><h1>ChronoNode</h1><span>Python DSA visualizer</span></div></div><div className="header-actions"><button className="ghost" aria-label="Learning resources"><BookOpen size={16}/> Learn</button><button className="ghost" aria-label="Python playground"><Code2 size={16}/> Playground</button></div></header>
     <main><aside className="sidebar"><div className="side-title">WORKSPACE</div><button className="nav active"><Code2/> Editor</button><button className="nav"><GitBranch/> Algorithms</button><button className="nav"><Layers/> Data structures</button><div className="side-title samples">SAMPLES</div>{Object.keys(samples).map(name => <button className={`sample ${sample === name ? 'selected' : ''}`} onClick={() => { setSample(name); setCode(samples[name]); setEvents([]); setIndex(0); }} key={name}>{name}</button>)}</aside>
       <section className="workspace">
         <div className="toolbar"><label className="sample-select-label" htmlFor="sample-select">Example</label><select id="sample-select" value={sample} onChange={e => { setSample(e.target.value); setCode(samples[e.target.value]); setEvents([]); setIndex(0); }}>{Object.keys(samples).map(name => <option key={name}>{name}</option>)}</select>

@@ -1,6 +1,6 @@
 # ChronoNode - Advanced Python DSA Visualizer
 
-> **TraceForge** turns Python data-structure and algorithm code into an inspectable, step-by-step execution trace.
+> **ChronoNode** turns Python data-structure and algorithm code into an inspectable, step-by-step execution trace.
 
 [![Verify](https://github.com/Sangchi-ui/ChronoNode/actions/workflows/ci.yml/badge.svg)](https://github.com/Sangchi-ui/ChronoNode/actions/workflows/ci.yml)
 [![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=111)](https://react.dev/)
@@ -8,7 +8,7 @@
 [![Python runtime](https://img.shields.io/badge/Python-Pyodide%200.26.2-3776AB?logo=python&logoColor=white)](https://pyodide.org/)
 [![License](https://img.shields.io/badge/license-not%20specified-lightgrey)](#license)
 
-TraceForge executes Python in the browser with Pyodide, captures meaningful runtime events, and replays them alongside the source. It does not play prerecorded algorithm animations: visual states come from the code that actually ran. Per-step time and space estimates use AST patterns and runtime collection sizes where the operation is recognized; unrecognized operations gracefully use safe constant fallback estimates (`O(1)`) with descriptive context.
+ChronoNode executes Python in the browser with Pyodide, captures meaningful runtime events, and replays them alongside the source. It does not play prerecorded algorithm animations: visual states come from the code that actually ran. Per-step time and space estimates use AST patterns and runtime collection sizes where the operation is recognized; unrecognized operations gracefully use safe constant fallback estimates (`O(1)`) with descriptive context.
 
 ## Highlights
 

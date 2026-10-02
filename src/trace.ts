@@ -6,11 +6,13 @@ export type TraceEvent = {
   globals: Record<string, unknown>; arguments: Record<string, unknown>; returnValue?: unknown;
   beforeState: Record<string, unknown>; afterState: Record<string, unknown>;
   state: Record<string, unknown>; focus: Focus; explanation: string;
-    lineComplexity: LineComplexity;
+  message?: string;
+  lineComplexity: LineComplexity;
   callStack: Array<{ name: string; line: number; arguments: Record<string, unknown> }>;
   output?: string;
   structure: string;
-    dataStructure: string;
+  dataStructure: string;
+  visualizerType?: string;
 };
 
 export type Pyodide = { runPythonAsync(source: string): Promise<unknown> };
@@ -92,7 +94,7 @@ export function detectStructure(event: Pick<TraceEvent, 'statement' | 'state' | 
     if (Object.entries(event.state).some(([name, value]) => name.toLowerCase().includes('string') || name.toLowerCase().includes('text') || name.toLowerCase().includes('word') || (typeof value === 'string' && value.length > 1 && !value.startsWith('<')))) return 'string';
     if (Object.values(event.state).some(Array.isArray)) return 'array';
     if (Object.values(event.state).some(v => !!v && typeof v === 'object')) return 'mapping';
-  return 'variables';
+  return 'generic';
 }
 
 function preparePython(code: string): string {
@@ -199,12 +201,12 @@ for name,kind in visualize_kinds.items():
     elif kind=='stack': stack_variables.add(name)
 deque_variables.discard('queue'); deque_variables.discard('q')
 def canonical_structure(kind):
-    aliases={'bitboard':'bitwise','bit-array':'bitwise','binary-tree':'tree','binary-search-tree':'tree','bst':'tree','avl':'tree','red-black':'tree','priority-queue':'heap','min-heap':'heap','max-heap':'heap','singly-linked-list':'linked-list','doubly-linked-list':'linked-list','circular-linked-list':'linked-list','hashing':'hash-table','pattern-matching':'string','advanced-strings':'string','shortest-path':'graph','minimum-spanning-tree':'graph','mst':'graph','flow-network':'graph','backtracking':'recursion','segment-tree':'range-query','fenwick':'range-query','fenwick-tree':'range-query','sparse-table':'range-query'}
+    aliases={'bitboard':'bitwise','bit-array':'bitwise','binary-tree':'tree','binary-search-tree':'tree','bst':'tree','avl':'tree','red-black':'tree','priority-queue':'heap','min-heap':'heap','max-heap':'heap','singly-linked-list':'linked-list','doubly-linked-list':'linked-list','circular-linked-list':'linked-list','hashing':'hash-table','pattern-matching':'string','advanced-strings':'string','shortest-path':'graph','minimum-spanning-tree':'graph','mst':'graph','flow-network':'graph','backtracking':'recursion','segment-tree':'range-query','fenwick':'range-query','fenwick-tree':'range-query','sparse-table':'range-query','variables':'generic','generic':'generic'}
     return aliases.get(kind,kind)
 def infer_primary_structure():
     if visualize_kinds: return canonical_structure(next(iter(visualize_kinds.values())))
     try: tree=source_tree
-    except BaseException: return 'variables'
+    except BaseException: return 'generic'
     lower=USER_CODE.lower()
     class_fields=set()
     assigned_names=set()
@@ -256,7 +258,7 @@ def infer_primary_structure():
     if has_list or re.search(r'\b(array|values|arr)\b',lower): return 'array'
     if has_matrix: return 'dynamic-programming'
     if any(isinstance(node,ast.Dict) for node in ast.walk(tree)): return 'mapping'
-    return 'variables'
+    return 'generic'
 DATA_STRUCTURE=infer_primary_structure()
 class TraceLimit(Exception): pass
 def safe_type_name(value):
@@ -302,6 +304,38 @@ def _norm(value, seen=None, depth=0, budget=None):
         seen.remove(ident)
         return result
     return safe_repr(value,240)
+def format_for_message(val, depth=0):
+    try:
+        if val is None: return 'None'
+        if isinstance(val, bool): return str(val)
+        if isinstance(val, (int, float)): return str(val)
+        if isinstance(val, str):
+            if len(val) > 30: return repr(val[:27] + '...')
+            return repr(val)
+        if isinstance(val, dict):
+            if '__type__' in val:
+                tname = str(val['__type__'])
+                for field in ('val', 'value', 'data', 'key'):
+                    if field in val and val[field] is not None:
+                        inner = format_for_message(val[field], depth + 1) if depth < 1 else str(val[field])
+                        return tname + '(' + field + '=' + str(inner) + ')'
+                return '<' + tname + '>'
+            if not val: return '{}'
+            if depth > 0 or len(val) > 2 or any(isinstance(v, (dict, list)) for v in val.values()):
+                return '<dict with ' + str(len(val)) + ' entries>'
+            items = ', '.join(str(k) + ': ' + format_for_message(v, depth + 1) for k, v in list(val.items())[:2])
+            return '{' + items + '}'
+        if isinstance(val, (list, tuple)):
+            if not val: return '[]' if isinstance(val, list) else '()'
+            if depth > 0 or len(val) > 3:
+                items = ', '.join(format_for_message(x, depth + 1) for x in val[:2])
+                return '[' + items + ', ...]' if isinstance(val, list) else '(' + items + ', ...)'
+            items = ', '.join(format_for_message(x, depth + 1) for x in val)
+            return '[' + items + ']' if isinstance(val, list) else '(' + items + ')'
+        tname = type(val).__name__
+        return '<' + tname + '>'
+    except BaseException:
+        return safe_repr(val, 40)
 def json_safe(value,seen=None,depth=0):
     try: return _json_safe(value,seen,depth)
     except BaseException: return safe_repr(value,240)
@@ -790,17 +824,27 @@ def add_event(frame, kind, op, before=None, after=None, inst=None, result=None, 
     if arguments_override is not None and call_stack and call_stack[-1]['name']==frame.f_code.co_name: call_stack[-1]['arguments']=arguments_override
     focus=focus_override if focus_override is not None else infer_focus(statement,frame)
     if branch is not None: focus['result']='taken' if branch else 'not taken'
-    item={'step':len(events)+1,'line':line,'statement':statement,'eventType':op,'operation':op,'function':frame.f_code.co_name,'depth':max(0,len(frames)-1),'variables':local,'globals':global_values,'arguments':arguments,'beforeState':before if before is not None else full_state(frame),'afterState':after if after is not None else full_state(frame),'state':after if after is not None else full_state(frame),'focus':focus,'explanation':'','callStack':call_stack,'lineComplexity':line_complexity(statement,frame,op,kind,result,before),'dataStructure':DATA_STRUCTURE}
+    item={'step':len(events)+1,'line':line,'statement':statement,'eventType':op,'operation':op,'function':frame.f_code.co_name,'depth':max(0,len(frames)-1),'variables':local,'globals':global_values,'arguments':arguments,'beforeState':before if before is not None else full_state(frame),'afterState':after if after is not None else full_state(frame),'state':after if after is not None else full_state(frame),'focus':focus,'explanation':'','message':'','callStack':call_stack,'lineComplexity':line_complexity(statement,frame,op,kind,result,before),'dataStructure':DATA_STRUCTURE,'visualizerType':DATA_STRUCTURE}
     if op=='return': item['returnValue']=norm(result)
     elif result is not None and op!='error': item['returnValue']=norm(result)
     if output_override is not None: item['output']=output_override
-    if op=='compare' and focus['values']: item['explanation']='Comparing '+', '.join(map(str,focus['values']))
+    if op=='compare' and focus['values']: item['explanation']='Comparing '+', '.join(format_for_message(v) for v in focus['values'])
+    elif op=='assign':
+        assign_targets=target_names(statement)
+        after_vals=after if after is not None else full_state(frame)
+        before_vals=before if before is not None else {}
+        changed=[t for t in assign_targets if t in after_vals and (t not in before_vals or before_vals[t]!=after_vals[t])]
+        if changed and len(changed)<=2:
+            item['explanation']='Assign · '+', '.join(str(t)+' = '+format_for_message(after_vals[t]) for t in changed)
+        else:
+            item['explanation']='Assign · '+statement
     elif op=='branch' and branch is not None: item['explanation']='Condition '+('was true; branch taken' if branch else 'was false; branch skipped')
     elif op in ('call','return'): item['explanation']=('Calling ' if op=='call' else 'Returning from ')+frame.f_code.co_name
     elif op=='error': item['explanation']=str(result or statement)
     elif output_override is not None: item['explanation']='Program output: '+output_override.strip()
     elif before!=after and op not in ('line','assign'): item['explanation']=op.title()+' changed the data structure state'
     else: item['explanation']=(op.title()+' · ' if op!='line' else 'Executing · ')+statement
+    item['message']=item['explanation']
     events.append(item)
 def get_inst(frame):
     code=frame.f_code
@@ -914,7 +958,10 @@ def tracer(frame,event,arg):
         exc=arg[1]
         if not isinstance(exc,TraceLimit) and id(exc) not in reported_exceptions:
             reported_exceptions.add(id(exc))
-            add_event(frame,'error','error',full_state(frame),full_state(frame),get_inst(frame),str(exc))
+            err_line=frame.f_lineno
+            err_msg=str(exc) or type(exc).__name__
+            formatted_err=f"Execution Error: {err_msg} at line {err_line}" if not str(exc).startswith('Execution Error:') else str(exc)
+            add_event(frame,'error','error',full_state(frame),full_state(frame),get_inst(frame),formatted_err)
     return tracer
 namespace={'__name__':'__main__'}
 stdout_buffer=io.StringIO()
@@ -927,36 +974,85 @@ except BaseException as exc:
     program_error=True
     frame=frames[-1] if frames else None
     existing_error=next((item for item in reversed(events) if item.get('eventType')=='error'),None)
-    if existing_error:
-        terminal=dict(existing_error); terminal['step']=len(events)+1; terminal['explanation']=str(exc); events.append(terminal)
-    elif frame:
-        try: add_event(frame,'error','error',full_state(frame),full_state(frame),get_inst(frame),str(exc))
-        except Exception:
-            events.append({'step':len(events)+1,'line':frame.f_lineno,'statement':source_line(frame.f_lineno),'eventType':'error','operation':'error','function':frame.f_code.co_name,'depth':max(0,len(frames)-1),'variables':local_state(frame),'globals':visible(frame.f_globals),'arguments':args_for(frame),'beforeState':full_state(frame),'afterState':full_state(frame),'state':full_state(frame),'focus':{},'explanation':str(exc),'callStack':[],'lineComplexity':{'time':'O(1)','timeDetails':'Terminal error reporting','space':'O(1)','spaceDetails':'No additional auxiliary elements'},'dataStructure':DATA_STRUCTURE})
-    else:
-        error_line=getattr(exc,'lineno',0) or 0
-        error_statement=(getattr(exc,'text',None) or source_line(error_line)).strip()
+    err_line=getattr(exc,'lineno',None)
+    if not err_line:
+        tb=getattr(exc,'__traceback__',None)
+        if tb and tb.tb_next:
+            curr=tb.tb_next
+            while curr:
+                if curr.tb_frame.f_code.co_filename=='<exec>': err_line=curr.tb_lineno
+                curr=curr.tb_next
+    if not err_line and frame: err_line=frame.f_lineno
+    err_msg=str(exc) or type(exc).__name__
+    line_part=f" at line {err_line}" if err_line else ""
+    if isinstance(exc,TraceLimit):
         explanation=str(exc)
-        if isinstance(exc,SyntaxError) and 'line continuation character' in explanation.lower() and r'\n' in error_statement:
+    elif str(exc).startswith('Execution Error:'):
+        explanation=str(exc)
+    elif existing_error and 'at line' in existing_error.get('explanation',''):
+        explanation=existing_error['explanation']
+    else:
+        explanation=f"Execution Error: {err_msg}{line_part}"
+    if existing_error:
+        terminal=dict(existing_error); terminal['step']=len(events)+1; terminal['explanation']=explanation; terminal['message']=explanation; events.append(terminal)
+    elif frame:
+        try: add_event(frame,'error','error',full_state(frame),full_state(frame),get_inst(frame),explanation)
+        except Exception:
+            events.append({'step':len(events)+1,'line':err_line or 0,'statement':source_line(err_line or 0),'eventType':'error','operation':'error','function':frame.f_code.co_name,'depth':max(0,len(frames)-1),'variables':local_state(frame),'globals':visible(frame.f_globals),'arguments':args_for(frame),'beforeState':full_state(frame),'afterState':full_state(frame),'state':full_state(frame),'focus':{},'explanation':explanation,'message':explanation,'callStack':[],'lineComplexity':{'time':'O(1)','timeDetails':'Terminal error reporting','space':'O(1)','spaceDetails':'No additional auxiliary elements'},'dataStructure':DATA_STRUCTURE,'visualizerType':DATA_STRUCTURE})
+    else:
+        error_line=err_line or getattr(exc,'lineno',0) or 0
+        error_statement=(getattr(exc,'text',None) or source_line(error_line)).strip()
+        if isinstance(exc,SyntaxError) and 'line continuation character' in str(exc).lower() and r'\n' in error_statement:
             explanation += " — this line contains a literal backslash-n sequence. Replace it with an actual line break between statements."
-        events.append({'step':len(events)+1,'line':error_line,'statement':error_statement,'eventType':'error','operation':'error','function':'<module>','depth':0,'variables':{},'globals':{},'arguments':{},'beforeState':{},'afterState':{},'state':{},'focus':{},'explanation':explanation,'callStack':[],'lineComplexity':{'time':'O(1)','timeDetails':'Terminal error reporting','space':'O(1)','spaceDetails':'No additional auxiliary elements'},'dataStructure':DATA_STRUCTURE})
+        events.append({'step':len(events)+1,'line':error_line,'statement':error_statement,'eventType':'error','operation':'error','function':'<module>','depth':0,'variables':{},'globals':{},'arguments':{},'beforeState':{},'afterState':{},'state':{},'focus':{},'explanation':explanation,'message':explanation,'callStack':[],'lineComplexity':{'time':'O(1)','timeDetails':'Terminal error reporting','space':'O(1)','spaceDetails':'No additional auxiliary elements'},'dataStructure':DATA_STRUCTURE,'visualizerType':DATA_STRUCTURE})
 finally:
     sys.settrace(None)
 if not program_error:
-    events.append({'step':len(events)+1,'line':len(SOURCE),'statement':'','eventType':'complete','operation':'complete','function':'<module>','depth':0,'variables':visible(namespace),'globals':{},'arguments':{},'beforeState':{},'afterState':visible(namespace),'state':visible(namespace),'focus':{},'explanation':'Program completed','callStack':[],'lineComplexity':{'time':'O(1)','timeDetails':'Trace completion bookkeeping','space':'O(1)','spaceDetails':'No additional auxiliary elements'},'dataStructure':DATA_STRUCTURE})
+    events.append({'step':len(events)+1,'line':len(SOURCE),'statement':'','eventType':'complete','operation':'complete','function':'<module>','depth':0,'variables':visible(namespace),'globals':{},'arguments':{},'beforeState':{},'afterState':visible(namespace),'state':visible(namespace),'focus':{},'explanation':'Program completed','message':'Program completed','callStack':[],'lineComplexity':{'time':'O(1)','timeDetails':'Trace completion bookkeeping','space':'O(1)','spaceDetails':'No additional auxiliary elements'},'dataStructure':DATA_STRUCTURE,'visualizerType':DATA_STRUCTURE})
 json.dumps(json_safe(events),allow_nan=False)`;
 
 export async function tracePython(code: string): Promise<TraceEvent[]> {
-  const py = await loadPython();
-  const runner = buildTraceProgram(code);
-  const raw = await py.runPythonAsync(runner);
+  try {
+    const py = await loadPython();
+    const runner = buildTraceProgram(code);
+    const raw = await py.runPythonAsync(runner);
     const parsed = JSON.parse(String(raw)) as Array<Omit<TraceEvent, 'structure'>>;
     return attachDataStructure(parsed, code);
+  } catch (err: any) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const cleanMsg = msg.startsWith('Execution Error:') ? msg : `Execution Error: ${msg}`;
+    const fallbackEvent: TraceEvent = {
+      step: 1,
+      line: 1,
+      statement: code.split('\n')[0] || '',
+      eventType: 'error',
+      operation: 'error',
+      function: '<module>',
+      depth: 0,
+      variables: {},
+      globals: {},
+      arguments: {},
+      beforeState: {},
+      afterState: {},
+      state: {},
+      focus: {},
+      explanation: cleanMsg,
+      message: cleanMsg,
+      callStack: [],
+      lineComplexity: { time: 'O(1)', timeDetails: 'Terminal error reporting', space: 'O(1)', spaceDetails: 'No additional auxiliary elements' },
+      structure: 'generic',
+      dataStructure: 'generic',
+      visualizerType: 'generic',
+    };
+    return [fallbackEvent];
+  }
 }
 
 export function attachDataStructure(events: Array<Omit<TraceEvent, 'structure'>>, source: string): TraceEvent[] {
     return events.map(event => {
-        const dataStructure = normalizeStructure(event.dataStructure || detectStructure(event, source));
+        const rawDs = (event as any).visualizerType || event.dataStructure || detectStructure(event, source);
+        const dataStructure = normalizeStructure(rawDs === 'variables' ? 'generic' : rawDs);
+        const visualizerType = dataStructure;
         const rawComplexity = (event as any).lineComplexity;
         const time = rawComplexity?.time && rawComplexity.time !== 'O(?)' && rawComplexity.time !== '?' ? rawComplexity.time : 'O(1)';
         const space = rawComplexity?.space && rawComplexity.space !== 'O(?)' && rawComplexity.space !== '?' ? rawComplexity.space : 'O(1)';
@@ -967,7 +1063,8 @@ export function attachDataStructure(events: Array<Omit<TraceEvent, 'structure'>>
             ? rawComplexity.spaceDetails
             : 'No additional auxiliary elements';
         const lineComplexity = { time, timeDetails, space, spaceDetails };
-        return { ...event, structure: dataStructure, dataStructure, lineComplexity };
+        const message = (event as any).message || event.explanation;
+        return { ...event, structure: dataStructure, dataStructure, visualizerType, message, lineComplexity };
     });
 }
 
