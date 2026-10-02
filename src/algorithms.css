@@ -977,10 +977,27 @@
   height: 58px;
   background: #141a24;
   border-bottom: 1px solid #252c38;
+  display: grid;
+  grid-template-columns: minmax(460px, 4fr) 6fr;
+  padding: 0;
+  width: 100%;
+}
+
+.embedded-workspace .toolbar-editor-section {
   display: flex;
   align-items: center;
   gap: 12px;
+  padding: 0 18px;
+  border-right: 1px solid #202b3c;
+  min-width: 0;
+}
+
+.embedded-workspace .toolbar-visual-section {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   padding: 0 20px;
+  min-width: 0;
 }
 
 .embedded-workspace .reset-code-btn {
@@ -1003,10 +1020,10 @@
   color: #f1f5f9;
 }
 
-/* Strict 50/50 Split-Pane Workspace: Left Code Editor / Right Visualizer matching main Editor */
+/* Balanced 40/60 Split-Pane Workspace: Left Code Editor / Right Visualizer Canvas */
 .embedded-split-workspace {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(460px, 4fr) 6fr;
   min-height: 580px;
   height: 640px;
   width: 100%;
@@ -1015,7 +1032,7 @@
 
 .embedded-panes {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(460px, 4fr) 6fr;
   min-height: 580px;
   height: 640px;
   width: 100%;
@@ -1028,20 +1045,51 @@
     grid-template-columns: 1fr;
     height: auto;
   }
+
+  .embedded-workspace .toolbar {
+    grid-template-columns: 1fr;
+    height: auto;
+    padding: 10px 16px;
+    gap: 10px;
+  }
+
+  .embedded-workspace .toolbar-editor-section {
+    border-right: none;
+    padding: 0;
+    flex-wrap: wrap;
+  }
+
+  .embedded-workspace .toolbar-visual-section {
+    padding: 0;
+    justify-content: flex-start;
+  }
+
+  .embedded-code-pane,
+  .embedded-panes .editor-pane,
+  .embedded-workspace .editor-pane {
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 480px;
+    border-right: none;
+    border-bottom: 1px solid #202b3c;
+  }
 }
 
 .embedded-code-pane,
-.embedded-panes .editor-pane {
+.embedded-panes .editor-pane,
+.embedded-workspace .editor-pane {
+  width: 100%;
+  min-width: 460px;
   border-right: 1px solid #202b3c;
   display: flex;
   flex-direction: column;
   background: #111722;
-  min-width: 0;
   overflow: hidden;
 }
 
 .embedded-visual-pane,
-.embedded-panes .visual-pane {
+.embedded-panes .visual-pane,
+.embedded-workspace .visual-pane {
   display: flex;
   flex-direction: column;
   background: #0e131b;

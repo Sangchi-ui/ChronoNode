@@ -298,11 +298,15 @@ describe('Algorithms Registry', () => {
         expect(algorithmsCss).toMatch(/\.embedded-visualizer-container\s*\{[^}]*border-radius:\s*0;/);
       });
 
-      it('enforces a strict 50/50 split-pane layout for code editor and visualizer canvas', () => {
-        expect(algorithmsCss).toMatch(/\.embedded-split-workspace\s*\{[^}]*grid-template-columns:\s*1fr\s+1fr;/);
+      it('enforces a balanced 40/60 split-pane layout with minimum width for code readability and aligned toolbars', () => {
+        expect(algorithmsCss).toMatch(/\.embedded-split-workspace\s*\{[^}]*grid-template-columns:\s*minmax\(\s*460px\s*,\s*4fr\s*\)\s+6fr;/);
+        expect(algorithmsCss).toMatch(/\.embedded-code-pane[^{]*\{[^}]*min-width:\s*460px;/);
+        expect(algorithmsCss).toMatch(/\.embedded-workspace\s+\.toolbar\s*\{[^}]*grid-template-columns:\s*minmax\(\s*460px\s*,\s*4fr\s*\)\s+6fr;/);
         expect(embeddedVisualizerTsx).toContain('embedded-split-workspace');
         expect(embeddedVisualizerTsx).toContain('embedded-code-pane');
         expect(embeddedVisualizerTsx).toContain('embedded-visual-pane');
+        expect(embeddedVisualizerTsx).toContain('toolbar-editor-section');
+        expect(embeddedVisualizerTsx).toContain('toolbar-visual-section');
       });
 
       it('unifies visualizer layout to be a 1:1 pixel-perfect match with the main Editor workspace', () => {

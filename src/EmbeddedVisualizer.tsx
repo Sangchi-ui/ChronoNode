@@ -193,102 +193,106 @@ export function EmbeddedVisualizer({ initialCode, title: _title }: EmbeddedVisua
 
   return (
     <div className="workspace embedded-workspace w-full">
-      {/* Standardized Toolbar directly above code editor matching main Editor */}
+      {/* Standardized Toolbar aligned with Code Editor (40%) and Canvas (60%) */}
       <div className="toolbar">
-        <button
-          className="reset-code-btn"
-          onClick={() => {
-            setCode(initialCode);
-            setEvents([]);
-            setIndex(0);
-            setRunning(false);
-            runTrace(false);
-          }}
-          title="Reset code to original"
-        >
-          <RotateCcw size={14} />
-          <span>Reset Code</span>
-        </button>
-
-        <div className="run-controls">
+        <div className="toolbar-editor-section">
           <button
-            disabled={!events.length}
+            className="reset-code-btn"
             onClick={() => {
-              setRunning(false);
+              setCode(initialCode);
+              setEvents([]);
               setIndex(0);
-            }}
-            title="Restart replay"
-            aria-label="Restart replay"
-          >
-            <RotateCcw size={16} />
-          </button>
-          <button
-            disabled={!events.length || index === 0}
-            onClick={() => {
               setRunning(false);
-              setIndex((i) => Math.max(0, i - 1));
+              runTrace(false);
             }}
-            title="Previous step"
-            aria-label="Previous step"
+            title="Reset code to original"
           >
-            <ChevronLeft size={18} />
+            <RotateCcw size={14} />
+            <span>Reset Code</span>
           </button>
-          <button
-            className="run"
-            disabled={loading}
-            onClick={handlePlayToggle}
-            aria-label={events.length ? (running ? 'Pause' : 'Resume') : 'Run code'}
-          >
-            {loading ? (
-              <span className="spinner" />
-            ) : running ? (
-              <Pause size={15} />
-            ) : (
-              <Play size={15} />
-            )}{' '}
-            {loading ? 'Tracing…' : events.length ? (running ? 'Pause' : 'Resume') : 'Run code'}
-          </button>
-          <button
-            disabled={!events.length || index >= events.length - 1}
-            onClick={() => {
-              setRunning(false);
-              setIndex((i) => Math.min(events.length - 1, i + 1));
-            }}
-            title="Next step"
-            aria-label="Next step"
-          >
-            <ChevronRight size={18} />
-          </button>
-          <button
-            disabled={!events.length || index >= events.length - 1}
-            onClick={() => {
-              setRunning(false);
-              setIndex(events.length - 1);
-            }}
-            title="Jump to last step"
-            aria-label="Jump to last step"
-          >
-            <SkipForward size={16} />
-          </button>
+
+          <div className="run-controls">
+            <button
+              disabled={!events.length}
+              onClick={() => {
+                setRunning(false);
+                setIndex(0);
+              }}
+              title="Restart replay"
+              aria-label="Restart replay"
+            >
+              <RotateCcw size={16} />
+            </button>
+            <button
+              disabled={!events.length || index === 0}
+              onClick={() => {
+                setRunning(false);
+                setIndex((i) => Math.max(0, i - 1));
+              }}
+              title="Previous step"
+              aria-label="Previous step"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              className="run"
+              disabled={loading}
+              onClick={handlePlayToggle}
+              aria-label={events.length ? (running ? 'Pause' : 'Resume') : 'Run code'}
+            >
+              {loading ? (
+                <span className="spinner" />
+              ) : running ? (
+                <Pause size={15} />
+              ) : (
+                <Play size={15} />
+              )}{' '}
+              {loading ? 'Tracing…' : events.length ? (running ? 'Pause' : 'Resume') : 'Run code'}
+            </button>
+            <button
+              disabled={!events.length || index >= events.length - 1}
+              onClick={() => {
+                setRunning(false);
+                setIndex((i) => Math.min(events.length - 1, i + 1));
+              }}
+              title="Next step"
+              aria-label="Next step"
+            >
+              <ChevronRight size={18} />
+            </button>
+            <button
+              disabled={!events.length || index >= events.length - 1}
+              onClick={() => {
+                setRunning(false);
+                setIndex(events.length - 1);
+              }}
+              title="Jump to last step"
+              aria-label="Jump to last step"
+            >
+              <SkipForward size={16} />
+            </button>
+          </div>
         </div>
 
-        <label className="speed-control">
-          Speed{' '}
-          <input
-            aria-label="Playback speed"
-            type="range"
-            min="80"
-            max="1200"
-            step="40"
-            value={1200 - speed}
-            onChange={(e) => setSpeed(1200 - Number(e.target.value))}
-          />
-        </label>
+        <div className="toolbar-visual-section">
+          <label className="speed-control">
+            Speed{' '}
+            <input
+              aria-label="Playback speed"
+              type="range"
+              min="80"
+              max="1200"
+              step="40"
+              value={1200 - speed}
+              onChange={(e) => setSpeed(1200 - Number(e.target.value))}
+            />
+          </label>
+        </div>
       </div>
 
-      {/* Strict 50/50 Split Panes matching main Editor */}
+      {/* Balanced 40/60 Split Panes with Minimum Width for Code Readability */}
       <div className="panes embedded-panes embedded-split-workspace">
-        {/* Left Side: Code Editor */}
+        {/* Left Side: Code Editor (40% width, min 460px) */}
         <div className="editor-pane embedded-code-pane">
           <div className="pane-head">
             <span>algorithm.py</span>
