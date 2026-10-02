@@ -1,4 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -88,7 +92,11 @@ export function AlgorithmDetailPage({
         <header className="detail-hero">
           <div className="hero-category-badge">{enriched.category}</div>
           <h1 className="hero-title">{enriched.name}</h1>
-          <p className="hero-subtitle">{enriched.explanation}</p>
+          <div className="hero-subtitle prose prose-invert prose-green max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+              {enriched.explanation}
+            </ReactMarkdown>
+          </div>
 
           <div className="hero-metrics-bar">
             <div className="metric-pill">
@@ -124,10 +132,10 @@ export function AlgorithmDetailPage({
             <h2>In-Depth Explanation & Behavioral Mechanics</h2>
           </div>
           <div className="section-body tutorial-prose">
-            <div className="lead-paragraph markdown-content">
-              {enriched.inDepthExplanation.split('\n\n').map((para, i) => (
-                <p key={i}>{para}</p>
-              ))}
+            <div className="lead-paragraph markdown-content prose prose-invert prose-green max-w-none">
+              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                {enriched.inDepthExplanation}
+              </ReactMarkdown>
             </div>
 
             <div className="analogy-callout">
@@ -135,7 +143,11 @@ export function AlgorithmDetailPage({
                 <Lightbulb size={18} className="callout-icon" />
                 <h3>Real-World Analogy</h3>
               </div>
-              <p>{enriched.realWorldExample}</p>
+              <div className="prose prose-invert prose-green max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                  {enriched.realWorldExample}
+                </ReactMarkdown>
+              </div>
             </div>
           </div>
         </section>
@@ -169,7 +181,11 @@ export function AlgorithmDetailPage({
                       <span className="state-label">State:</span>
                       <code>{st.state}</code>
                     </div>
-                    <p className="step-explanation">{st.explanation}</p>
+                    <div className="step-explanation prose prose-invert prose-green max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                        {st.explanation}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -180,15 +196,22 @@ export function AlgorithmDetailPage({
                 <CheckCircle2 size={16} className="success-icon" />
                 <div>
                   <span className="badge-title">TERMINATION / FINAL STATE:</span>
-                  <p>{enriched.concreteWalkthrough.finalState}</p>
+                  <div className="prose prose-invert prose-green max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                      {enriched.concreteWalkthrough.finalState}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               </div>
             )}
 
             {enriched.concreteWalkthrough.summary && (
-              <p className="walkthrough-summary">
-                <b>Summary:</b> {enriched.concreteWalkthrough.summary}
-              </p>
+              <div className="walkthrough-summary prose prose-invert prose-green max-w-none">
+                <b>Summary:</b>{' '}
+                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                  {enriched.concreteWalkthrough.summary}
+                </ReactMarkdown>
+              </div>
             )}
           </div>
         </section>
@@ -223,9 +246,11 @@ export function AlgorithmDetailPage({
               </div>
             </div>
 
-            <div className="complexity-derivation-box">
+            <div className="complexity-derivation-box prose prose-invert prose-green max-w-none">
               <h4>Derivation & Asymptotic Invariants</h4>
-              <p>{enriched.complexity.breakdownExplanation}</p>
+              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                {enriched.complexity.breakdownExplanation}
+              </ReactMarkdown>
             </div>
           </div>
         </section>
@@ -241,7 +266,11 @@ export function AlgorithmDetailPage({
               {enriched.stepByStepLogic.map((step, idx) => (
                 <li key={idx}>
                   <div className="step-num">{idx + 1}</div>
-                  <div className="step-text">{step}</div>
+                  <div className="step-text prose prose-invert prose-green max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                      {step}
+                    </ReactMarkdown>
+                  </div>
                 </li>
               ))}
             </ol>
@@ -259,7 +288,13 @@ export function AlgorithmDetailPage({
               <h3>Key Real-World Applications</h3>
               <ul className="bulleted-list">
                 {enriched.applications.map((app, i) => (
-                  <li key={i}>{app}</li>
+                  <li key={i}>
+                    <div className="prose prose-invert prose-green max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                        {app}
+                      </ReactMarkdown>
+                    </div>
+                  </li>
                 ))}
               </ul>
             </div>
@@ -268,7 +303,13 @@ export function AlgorithmDetailPage({
               <h3>Critical Edge Cases to Consider</h3>
               <ul className="bulleted-list">
                 {enriched.edgeCases.map((edge, i) => (
-                  <li key={i}>{edge}</li>
+                  <li key={i}>
+                    <div className="prose prose-invert prose-green max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                        {edge}
+                      </ReactMarkdown>
+                    </div>
+                  </li>
                 ))}
               </ul>
             </div>

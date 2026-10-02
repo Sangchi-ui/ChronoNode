@@ -581,8 +581,179 @@
 }
 
 .lead-paragraph {
-  white-space: pre-line;
   margin: 0;
+}
+
+/* ==========================================================================
+   Markdown & KaTeX Typography Styling (prose prose-invert prose-green)
+   ========================================================================== */
+
+.prose,
+.markdown-content {
+  color: #cbd5e1;
+  font-size: 14.5px;
+  line-height: 1.7;
+}
+
+.prose h1,
+.markdown-content h1 {
+  font-size: 24px;
+  font-weight: 800;
+  color: #f8fafc;
+  margin: 24px 0 12px;
+  letter-spacing: -0.02em;
+}
+
+.prose h2,
+.markdown-content h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 22px 0 10px;
+  letter-spacing: -0.01em;
+}
+
+.prose h3,
+.markdown-content h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin: 18px 0 8px;
+  letter-spacing: -0.01em;
+}
+
+.prose h4,
+.markdown-content h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin: 14px 0 6px;
+}
+
+.prose p,
+.markdown-content p {
+  margin: 0 0 12px;
+  line-height: 1.7;
+  color: #cbd5e1;
+}
+
+.prose p:last-child,
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.prose strong,
+.prose b,
+.markdown-content strong,
+.markdown-content b {
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.prose-green strong,
+.prose-green b,
+.prose-green li strong {
+  color: #d7f675;
+}
+
+.prose em,
+.markdown-content em {
+  font-style: italic;
+  color: #94a3b8;
+}
+
+.prose ul,
+.markdown-content ul {
+  list-style-type: disc;
+  padding-left: 22px;
+  margin: 10px 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prose ol,
+.markdown-content ol {
+  list-style-type: decimal;
+  padding-left: 22px;
+  margin: 10px 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prose li,
+.markdown-content li {
+  line-height: 1.6;
+  color: #cbd5e1;
+}
+
+.prose li p,
+.markdown-content li p {
+  margin: 0;
+  display: inline;
+}
+
+.prose code,
+.markdown-content code {
+  background: #141d29;
+  border: 1px solid #233144;
+  color: #38bdf8;
+  font: 12.5px 'DM Mono', monospace;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.prose pre,
+.markdown-content pre {
+  background: #0f1520;
+  border: 1px solid #222f42;
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 14px 0;
+}
+
+.prose pre code,
+.markdown-content pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: #e2e8f0;
+}
+
+.prose blockquote,
+.markdown-content blockquote {
+  border-left: 3px solid #c4f34a;
+  background: #131c18;
+  padding: 10px 16px;
+  border-radius: 0 6px 6px 0;
+  margin: 14px 0;
+  color: #d1fae5;
+}
+
+/* KaTeX Math Typography Styling */
+.katex {
+  font-size: 1.05em;
+  color: #c4f34a;
+}
+
+.katex-display {
+  margin: 12px 0 !important;
+  padding: 8px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.katex .mord.mathnormal {
+  color: #93c5fd;
+}
+
+.step-explanation .prose p,
+.step-text .prose p,
+.hero-subtitle .prose p,
+.walkthrough-summary .prose p {
+  margin-bottom: 0;
 }
 
 .analogy-callout {

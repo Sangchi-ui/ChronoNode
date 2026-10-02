@@ -419,5 +419,25 @@ describe('Algorithms Registry', () => {
         });
       }
     });
+
+    describe('4. Client-side Markdown & LaTeX Math Rendering (KaTeX Integration)', () => {
+      it('imports ReactMarkdown, remarkMath, rehypeKatex and katex stylesheet', () => {
+        expect(detailPageTsx).toContain("import ReactMarkdown from 'react-markdown';");
+        expect(detailPageTsx).toContain("import remarkMath from 'remark-math';");
+        expect(detailPageTsx).toContain("import rehypeKatex from 'rehype-katex';");
+        expect(detailPageTsx).toContain("import 'katex/dist/katex.min.css';");
+      });
+
+      it('configures ReactMarkdown with remarkMath and rehypeKatex plugins across content sections', () => {
+        expect(detailPageTsx).toMatch(/<ReactMarkdown\s+remarkPlugins=\{\[remarkMath\]\}\s+rehypePlugins=\{\[rehypeKatex\]\}>/);
+        expect(detailPageTsx).toContain('prose prose-invert prose-green max-w-none');
+      });
+
+      it('includes dark-mode typography styling for prose and KaTeX math in algorithms.css', () => {
+        expect(algorithmsCss).toMatch(/\.prose,\s*\.markdown-content\s*\{/);
+        expect(algorithmsCss).toMatch(/\.katex\s*\{/);
+        expect(algorithmsCss).toMatch(/\.katex-display\s*\{/);
+      });
+    });
   });
 });
