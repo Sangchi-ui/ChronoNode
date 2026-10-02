@@ -1,0 +1,4 @@
+.matrix-cell.is-read{border-color:#86bdff;background:#20384b;box-shadow:0 0 0 1px #86bdff33}
+.matrix-cell.is-written{border-color:#d7f675;background:#344526;box-shadow:0 0 0 2px #d7f67555}
+.matrix-cell.is-read b{color:#baddff}
+.matrix-cell.is-written b{color:#e2ff9b}

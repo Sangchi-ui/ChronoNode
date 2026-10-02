@@ -1,0 +1,5 @@
+.linked-node.active-linked-node{border-color:#ffc76a;background:#493a26;box-shadow:0 0 0 2px #ffc76a44;transform:translateY(-4px)}
+.linked-node.tail-linked-node{border-bottom-width:3px;border-bottom-color:#86bdff}
+.linked-node.active-linked-node.tail-linked-node{border-color:#d7f675}
+.node-pointer{font:8px 'DM Mono',monospace;color:#ffc76a;letter-spacing:.08em}
+.next-pointer.active-pointer{color:#fff1b7;text-shadow:0 0 8px #d7f67588}

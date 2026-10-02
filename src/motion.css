@@ -1,0 +1,5 @@
+.array-view{flex-wrap:nowrap;max-width:none;justify-content:flex-start}
+.array-cell.is-moving{z-index:1;animation:array-move .34s ease-out}
+.array-cell.is-changed{border-color:#d7f675;box-shadow:0 0 0 2px #d7f67544;animation:array-change .28s ease-out}
+@keyframes array-move{from{transform:translateX(var(--move-from,0));box-shadow:0 0 0 2px #d7f67566}to{transform:translateX(0);box-shadow:0 0 0 0 transparent}}
+@keyframes array-change{from{filter:brightness(1.7);transform:scale(1.04)}to{filter:brightness(1);transform:scale(1)}}

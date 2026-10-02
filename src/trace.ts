@@ -1,0 +1,536 @@
+export type Focus = { indices?: number[]; values?: unknown[]; names?: string[]; result?: string; range?: number[]; direction?: string; cells?: number[][]; readCells?: number[][]; writeCells?: number[][] };
+export type TraceEvent = {
+  step: number; line: number; statement: string; eventType: string; operation: string;
+  function: string; depth: number; variables: Record<string, unknown>;
+  globals: Record<string, unknown>; arguments: Record<string, unknown>; returnValue?: unknown;
+  beforeState: Record<string, unknown>; afterState: Record<string, unknown>;
+  state: Record<string, unknown>; focus: Focus; explanation: string;
+  callStack: Array<{ name: string; line: number; arguments: Record<string, unknown> }>;
+  output?: string;
+  structure: string;
+};
+
+export type Pyodide = { runPythonAsync(source: string): Promise<unknown> };
+let runtimePromise: Promise<Pyodide> | undefined;
+
+export function loadPython(): Promise<Pyodide> {
+  if (runtimePromise) return runtimePromise;
+  const loading = new Promise<Pyodide>((resolve, reject) => {
+    const boot = () => {
+      const loadPyodide = (globalThis as any).loadPyodide;
+      if (typeof loadPyodide !== 'function') {
+        reject(new Error('Pyodide loaded without its runtime factory. Refresh the page and try again.'));
+        return;
+      }
+      Promise.resolve(loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/' })).then(resolve, reject);
+    };
+    if (typeof (globalThis as any).loadPyodide === 'function') {
+      boot();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js';
+    script.onload = boot;
+    script.onerror = () => reject(new Error('Could not load Python. Check the connection to cdn.jsdelivr.net.'));
+    document.head.appendChild(script);
+  });
+  runtimePromise = loading.catch(error => {
+    runtimePromise = undefined;
+    throw error;
+  });
+  return runtimePromise;
+}
+
+export function detectStructure(event: Pick<TraceEvent, 'statement' | 'state' | 'callStack'>, source: string): string {
+  const text = `${source}\n${event.statement}`.toLowerCase();
+  const annotation = source.match(/@visualize\s+([\w-]+)\s+(\w+)/i);
+  if (annotation && Object.prototype.hasOwnProperty.call(event.state, annotation[2])) return annotation[1].toLowerCase().replaceAll('_', '-');
+  if (Object.entries(event.state).some(([name, value]) => name.toLowerCase().includes('graph') && !!value && typeof value === 'object' && !Array.isArray(value))) return 'graph';
+  if (/\bdeque\b/.test(text)) return /\b(?:queue|q)\s*=\s*(?:collections\.)?deque\s*\(/.test(text) ? 'queue' : 'deque';
+  if (/\b(queue|q)\.(append|popleft|put|get)\b/.test(text)) return 'queue';
+  if (/\b(stack|st)\.(append|pop)\b/.test(text)) return 'stack';
+  const objects = Object.values(event.state).filter((value): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value));
+  if (objects.some(value => '__type__' in value && 'children' in value)) return 'trie';
+  if (objects.some(value => '__type__' in value && ('left' in value || 'right' in value))) return 'tree';
+  if (objects.some(value => '__type__' in value && 'next' in value)) return 'linked-list';
+  if (Object.keys(event.state).some(name => name.toLowerCase().includes('parent')) && text.includes('find')) return 'union-find';
+  const frameNames = event.callStack.map(frame => frame.name);
+  if (frameNames.some(name => frameNames.filter(candidate => candidate === name).length > 1)) return 'recursion';
+  if (text.includes('heap') && Object.values(event.state).some(Array.isArray)) return 'heap';
+  if ((text.includes('dp') || text.includes('table') || text.includes('cost')) && Object.values(event.state).some(value => Array.isArray(value) && value.some(Array.isArray))) return 'dynamic-programming';
+  if ((text.includes('hash') || text.includes('table')) && Object.values(event.state).some(value => !!value && typeof value === 'object' && !Array.isArray(value))) return 'hash-table';
+  if (Object.values(event.state).some(Array.isArray)) return 'array';
+  if (Object.entries(event.state).some(([name, value]) => name.toLowerCase().includes('string') || name.toLowerCase().includes('text') || name.toLowerCase().includes('word') || (typeof value === 'string' && value.length > 1))) return 'string';
+  if (Object.values(event.state).some(v => !!v && typeof v === 'object')) return 'mapping';
+  return 'variables';
+}
+
+function preparePython(code: string): string {
+  return code.split('\n').map(line => /^\s*@visualize\s+[\w-]+\s+\w+\s*$/.test(line) ? `${line.match(/^\s*/)?.[0] || ''}# ${line.trim()}` : line).join('\n');
+}
+
+const PYTHON_TRACE = String.raw`import sys, json, linecache, dis, copy, re, types, ast, io, contextlib, weakref
+USER_CODE = __USER_CODE__
+SOURCE = USER_CODE.splitlines()
+events = []
+frames = []
+last_by_frame = {}
+last_context = {}
+instruction_maps = {}
+pending_conditions = {}
+op_count = 0
+event_limit = __EVENT_LIMIT__
+operation_names = {'read','write','compare','assign','swap','move','insert','delete','push','pop','enqueue','dequeue','enqueue-left','enqueue-right','dequeue-left','dequeue-right','visit','discover','relax','rotate','partition','merge','split','call','return','branch','lookup','update','backtrack','table-read','table-write','error','complete','line'}
+object_ids={}
+next_object_id=1
+def object_token(value):
+    global next_object_id
+    ident=id(value)
+    existing=object_ids.get(ident)
+    if existing and existing[0]() is value: return existing[1]
+    label='node-'+str(next_object_id); next_object_id+=1
+    def cleanup(reference,key=ident):
+        current=object_ids.get(key)
+        if current and current[0] is reference: object_ids.pop(key,None)
+    try: reference=weakref.ref(value,cleanup)
+    except TypeError: reference=lambda: value
+    object_ids[ident]=(reference,label)
+    return label
+deque_variables=set()
+deque_constructors={'deque'}
+collections_modules={'collections'}
+visualize_kinds={}
+for annotation in re.finditer(r'@visualize\s+([\w-]+)\s+(\w+)',USER_CODE):
+    visualize_kinds[annotation.group(2)]=annotation.group(1).lower().replace('_','-')
+try:
+    source_tree=ast.parse(USER_CODE)
+    for node in ast.walk(source_tree):
+        if isinstance(node,ast.ImportFrom) and node.module=='collections':
+            for alias in node.names:
+                if alias.name=='deque': deque_constructors.add(alias.asname or alias.name)
+        elif isinstance(node,ast.Import):
+            for alias in node.names:
+                if alias.name=='collections': collections_modules.add(alias.asname or alias.name)
+    def is_deque_constructor(value):
+        if not isinstance(value,ast.Call): return False
+        fn=value.func
+        return (isinstance(fn,ast.Name) and fn.id in deque_constructors) or (isinstance(fn,ast.Attribute) and fn.attr=='deque' and isinstance(fn.value,ast.Name) and fn.value.id in collections_modules)
+    def collect_target_names(target):
+        if isinstance(target,ast.Name): deque_variables.add(target.id)
+        elif isinstance(target,(ast.Tuple,ast.List)):
+            for child in target.elts: collect_target_names(child)
+    for node in ast.walk(source_tree):
+        if isinstance(node,ast.Assign) and is_deque_constructor(node.value):
+            for target in node.targets: collect_target_names(target)
+        elif isinstance(node,ast.AnnAssign) and is_deque_constructor(node.value): collect_target_names(node.target)
+except Exception: pass
+for name,kind in visualize_kinds.items():
+    if kind=='deque': deque_variables.add(name)
+    elif kind=='queue': deque_variables.discard(name)
+deque_variables.discard('queue'); deque_variables.discard('q')
+class TraceLimit(Exception): pass
+def norm(value, seen=None, depth=0):
+    if seen is None: seen=set()
+    if value is None or isinstance(value,(bool,int,float,str)): return value
+    if depth > 5: return repr(value)[:180]
+    ident=id(value)
+    if ident in seen: return '<cycle>'
+    if isinstance(value,(list,tuple,set,frozenset,dict)) or (type(value).__module__=='collections' and type(value).__name__=='deque') or (hasattr(value,'__dict__') and not isinstance(value,types.ModuleType)):
+        seen.add(ident)
+        if isinstance(value,dict): result={str(k):norm(v,seen,depth+1) for k,v in list(value.items())[:80]}
+        elif isinstance(value,(list,tuple)): result=[norm(v,seen,depth+1) for v in list(value)[:100]]
+        elif isinstance(value,(set,frozenset)): result=sorted([norm(v,seen,depth+1) for v in list(value)[:100]],key=repr)
+        elif type(value).__module__=='collections' and type(value).__name__=='deque': result=[norm(v,seen,depth+1) for v in list(value)[:100]]
+        else:
+            result={'__type__':type(value).__name__,**{str(k):norm(v,seen,depth+1) for k,v in list(value.__dict__.items())[:80]}}
+            result['__id__']=object_token(value)
+        seen.remove(ident)
+        return result
+    return repr(value)[:240]
+def visible(mapping):
+    return {str(k):norm(v) for k,v in list(mapping.items()) if not str(k).startswith('__') and k not in ('sys','json','linecache','dis','copy','re','types')}
+def source_line(line): return SOURCE[line-1].strip() if 0 < line <= len(SOURCE) else ''
+def args_for(frame):
+    names=frame.f_code.co_varnames[:frame.f_code.co_argcount+frame.f_code.co_kwonlyargcount]
+    return {n:norm(frame.f_locals[n]) for n in names if n in frame.f_locals}
+def full_state(frame):
+    if frame.f_code.co_name=='<module>': return visible(frame.f_globals)
+    state=visible(frame.f_globals)
+    state.update(visible(frame.f_locals))
+    return state
+def line_for(frame, inst=None): return inst.positions.lineno if inst and inst.positions and inst.positions.lineno else frame.f_lineno
+def classify(source, event_kind='line', inst=None):
+    text=source.strip()
+    swap=re.match(r'^\s*(\w+)\[([^\]]+)\]\s*,\s*\1\[([^\]]+)\]\s*=\s*\1\[([^\]]+)\]\s*,\s*\1\[([^\]]+)\]',text)
+    if swap and swap.group(2).strip()==swap.group(5).strip() and swap.group(3).strip()==swap.group(4).strip(): return 'swap'
+    if event_kind=='call': return 'call'
+    if event_kind=='return': return 'return'
+    if event_kind=='error': return 'error'
+    if text.startswith(('if ','elif ','while ')) or re.search(r'\s(?:==|!=|<=|>=|<|>)\s',text): return 'compare'
+    if text.startswith('for '): return 'branch'
+    if inst:
+        op=inst.opname
+        if op in ('COMPARE_OP','IS_OP','CONTAINS_OP'): return 'compare'
+        if op.startswith('POP_JUMP') or op in ('JUMP_IF_FALSE_OR_POP','JUMP_IF_TRUE_OR_POP'): return 'branch'
+        if op=='BINARY_SUBSCR': return 'read'
+        if op=='STORE_SUBSCR': return 'write'
+        if op.startswith('STORE_'): return 'assign'
+        if op.startswith('DELETE_'): return 'delete'
+        if op in ('CALL','CALL_FUNCTION','CALL_METHOD'): return method_operation(text)
+        if op=='RETURN_VALUE': return 'return'
+    return method_operation(text) if method_operation(text)!='line' else 'line'
+def method_operation(text):
+    t=text.lower()
+    if re.search(r'\b(visited|seen|discovered)\.add\s*\(',t): return 'discover'
+    deque_method=re.search(r'\b([A-Za-z_]\w*)\.(appendleft|append|popleft|pop|put|get|push|enqueue|dequeue)\s*\(',text)
+    if deque_method:
+        name,method=deque_method.groups()
+        kind=visualize_kinds.get(name,'deque' if name in deque_variables else '')
+        if kind=='deque' and method in ('appendleft','append','popleft','pop'): return {'appendleft':'enqueue-left','append':'enqueue-right','popleft':'dequeue-left','pop':'dequeue-right'}[method]
+        if kind=='stack' and method in ('append','push','pop'): return 'pop' if method=='pop' else 'push'
+        if kind=='queue' and method in ('append','put','enqueue','popleft','get','dequeue','pop'): return 'dequeue' if method in ('popleft','get','dequeue','pop') else 'enqueue'
+    moved=re.match(r'^\s*(\w+)\s*\[([^]]+)\]\s*=\s*\1\s*\[([^]]+)\]',text)
+    if moved and moved.group(2).strip()!=moved.group(3).strip(): return 'move'
+    if re.match(r'^\s*\w+\s*\[[^]]+\]\s*=',text): return 'write'
+    if re.search(r'^\s*\w+\s*\[[^]]+\]\s*\[[^]]+\]\s*=',text): return 'table-write'
+    if re.search(r'\w+\s*\[[^]]+\]\s*\[[^]]+\]',text) and ' = ' not in text: return 'table-read'
+    if '.heapify(' in t: return 'update'
+    if '.heappush(' in t: return 'push'
+    if '.heappop(' in t: return 'pop'
+    if re.search(r'\.(append|appendleft|add|insert)\s*\(',t):
+        if 'appendleft' in t: return 'enqueue'
+        if 'queue' in t or 'deque' in t or re.search(r'\bq\.(append|put)\b',t): return 'enqueue'
+        if 'stack' in t: return 'push'
+        return 'insert'
+    if re.search(r'\.(popleft|pop)\s*\(',t):
+        if 'popleft' in t or 'queue' in t or 'deque' in t or re.search(r'\bq\.(get|popleft)\b',t): return 'dequeue'
+        if 'stack' in t: return 'pop'
+        return 'delete'
+    if re.search(r'\.(remove|discard|clear)\s*\(',t): return 'delete'
+    if re.search(r'\.(sort|update)\s*\(',t): return 'update'
+    if re.search(r'\.(reverse|extend)\s*\(',t): return 'move' if '.reverse(' in t else 'insert'
+    if '.get(' in t or ' in ' in t: return 'lookup'
+    if 'rotate' in t: return 'rotate'
+    if 'merge' in t: return 'merge'
+    if 'partition' in t: return 'partition'
+    if ' = ' in text: return 'assign'
+    return 'line'
+def target_names(source):
+    names=set()
+    try: stmt=ast.parse(source).body[0]
+    except Exception: return names
+    def collect(node):
+        if isinstance(node,ast.Name): names.add(node.id)
+        elif isinstance(node,(ast.Subscript,ast.Attribute)): collect(node.value)
+        elif isinstance(node,(ast.Tuple,ast.List)):
+            for child in node.elts: collect(child)
+    if isinstance(stmt,ast.Assign):
+        for target in stmt.targets: collect(target)
+    elif isinstance(stmt,(ast.AnnAssign,ast.AugAssign)): collect(stmt.target)
+    elif isinstance(stmt,ast.Delete):
+        for target in stmt.targets: collect(target)
+    elif isinstance(stmt,(ast.For,ast.AsyncFor)): collect(stmt.target)
+    elif isinstance(stmt,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)): names.add(stmt.name)
+    elif isinstance(stmt,ast.Import):
+        for alias in stmt.names: names.add(alias.asname or alias.name.split('.')[0])
+    elif isinstance(stmt,ast.ImportFrom):
+        for alias in stmt.names: names.add(alias.asname or alias.name)
+    elif isinstance(stmt,ast.Expr) and isinstance(stmt.value,ast.Call) and isinstance(stmt.value.func,ast.Attribute):
+        if stmt.value.func.attr in ('append','appendleft','extend','insert','pop','popleft','remove','discard','add','update','clear','sort','reverse','rotate','put','get','enqueue','dequeue','push','delete','union'):
+            collect(stmt.value.func.value)
+    for child in ast.walk(stmt):
+        if isinstance(child,ast.Call) and isinstance(child.func,ast.Attribute):
+            if child.func.attr in ('append','appendleft','extend','insert','pop','popleft','remove','discard','add','update','clear','sort','reverse','rotate','put','get','enqueue','dequeue','push','delete','union'):
+                collect(child.func.value)
+            elif child.func.attr in ('heapify','heappush','heappop') and child.args: collect(child.args[0])
+    return names
+def mutation_operation(source,before,after,variables):
+    try: stmt=ast.parse(source).body[0]
+    except Exception: return classify(source)
+    if isinstance(stmt,ast.Delete): return 'delete'
+    targets=[]
+    if isinstance(stmt,ast.Assign): targets=stmt.targets
+    elif isinstance(stmt,(ast.AnnAssign,ast.AugAssign)): targets=[stmt.target]
+    for target in targets:
+        if not isinstance(target,ast.Subscript): continue
+        if isinstance(target.value,ast.Subscript): return 'table-write'
+        base=target.value
+        while isinstance(base,(ast.Subscript,ast.Attribute)): base=base.value
+        if not isinstance(base,ast.Name): continue
+        name=base.id
+        old=before.get(name); new=after.get(name)
+        if isinstance(old,dict) and isinstance(new,dict):
+            if 'graph' in before and name.lower() in ('dist','distance','distances'): return 'relax'
+            key_node=target.slice
+            if isinstance(key_node,ast.Constant): key=key_node.value
+            elif isinstance(key_node,ast.Name): key=variables.get(key_node.id,'<unknown>')
+            else:
+                try: key=ast.literal_eval(key_node)
+                except Exception: key='<unknown>'
+            return 'update' if str(key) in old else 'insert'
+        if isinstance(old,list):
+            if isinstance(stmt,ast.Assign) and len(targets)==1 and isinstance(stmt.value,ast.Subscript):
+                value_base=stmt.value.value
+                while isinstance(value_base,(ast.Subscript,ast.Attribute)): value_base=value_base.value
+                if isinstance(value_base,ast.Name) and value_base.id==name: return 'move'
+            return 'write'
+    return classify(source)
+def integer_expression(expression,frame):
+    try: node=ast.parse(expression,mode='eval').body
+    except Exception: return None
+    def visit(item):
+        if isinstance(item,ast.Constant) and isinstance(item.value,int) and not isinstance(item.value,bool): return item.value
+        if isinstance(item,ast.Name):
+            value=frame.f_locals.get(item.id,frame.f_globals.get(item.id))
+            return value if isinstance(value,int) and not isinstance(value,bool) else None
+        if isinstance(item,ast.UnaryOp) and isinstance(item.op,(ast.UAdd,ast.USub)):
+            value=visit(item.operand)
+            return value if value is None or isinstance(item.op,ast.UAdd) else -value
+        if isinstance(item,ast.BinOp) and isinstance(item.op,(ast.Add,ast.Sub,ast.Mult,ast.FloorDiv,ast.Mod)):
+            left=visit(item.left); right=visit(item.right)
+            if left is None or right is None: return None
+            try:
+                if isinstance(item.op,ast.Add): return left+right
+                if isinstance(item.op,ast.Sub): return left-right
+                if isinstance(item.op,ast.Mult): return left*right
+                if isinstance(item.op,ast.FloorDiv): return left//right
+                return left%right
+            except Exception: return None
+        return None
+    return visit(node)
+def matrix_write_starts(source,frame):
+    starts=set()
+    try: stmt=ast.parse(source).body[0]
+    except Exception: return starts
+    targets=stmt.targets if isinstance(stmt,ast.Assign) else [stmt.target] if isinstance(stmt,(ast.AnnAssign,ast.AugAssign)) else []
+    for target in targets:
+        if isinstance(target,ast.Subscript) and isinstance(target.value,ast.Subscript): starts.add(target.col_offset)
+    return starts
+def infer_focus(source, frame):
+    focus={'indices':[],'values':[],'names':[],'cells':[],'readCells':[],'writeCells':[]}
+    indexed_names=set()
+    nested_names=set()
+    write_starts=matrix_write_starts(source,frame)
+    for match in re.finditer(r'([A-Za-z_]\w*)\s*\[\s*([^\[\]]+?)\s*\]\s*\[\s*([^\[\]]+?)\s*\]',source):
+        name,row_expr,col_expr=match.groups()
+        indexed_names.add(name)
+        indexed_names.update(re.findall(r'\b[A-Za-z_]\w*\b',row_expr+' '+col_expr))
+        nested_names.add(name)
+        try:
+            row=integer_expression(row_expr,frame); col=integer_expression(col_expr,frame)
+            container=frame.f_locals.get(name,frame.f_globals.get(name))
+            value=container[row][col]
+            display_row=row if row>=0 else len(container)+row
+            display_col=col if col>=0 else len(container[row])+col
+            cell=[int(display_row),int(display_col)]
+            if cell not in focus['cells']: focus['cells'].append(cell)
+            if match.start(1) in write_starts:
+                if cell not in focus['writeCells']: focus['writeCells'].append(cell)
+            elif cell not in focus['readCells']: focus['readCells'].append(cell)
+            focus['values'].append(norm(value))
+        except Exception: pass
+    for match in re.finditer(r'([A-Za-z_]\w*)\s*\[\s*([A-Za-z_]\w*|\d+)(?:\s*([+-])\s*(\d+))?\s*\]',source):
+        name,idx_name,sign,delta=match.groups()
+        if name in nested_names: continue
+        indexed_names.add(name)
+        if not idx_name.isdigit(): indexed_names.add(idx_name)
+        try:
+            container=frame.f_locals.get(name,frame.f_globals.get(name))
+            idx=int(idx_name) if idx_name.isdigit() else frame.f_locals.get(idx_name,frame.f_globals.get(idx_name))
+            if delta: idx += int(delta)*(1 if sign=='+' else -1)
+            value=container[idx]
+            if int(idx) not in focus['indices']:
+                focus['indices'].append(int(idx)); focus['values'].append(norm(value))
+            focus['names'].append(name)
+        except Exception: pass
+    if any(op in source for op in ('==','!=','<','>',' in ',' is ')):
+        for token in re.findall(r'\b[A-Za-z_]\w*\b',source):
+            if token in focus['names'] or token in indexed_names or token in ('if','elif','while','and','or','not','in','is','True','False','None') or token in ('len','range'):
+                continue
+            if token in frame.f_locals or token in frame.f_globals:
+                value=frame.f_locals.get(token,frame.f_globals.get(token))
+                if not callable(value) and not isinstance(value,types.ModuleType): focus['names'].append(token); focus['values'].append(norm(value))
+    lower=source.lower()
+    if 'left' in frame.f_locals and 'right' in frame.f_locals and isinstance(frame.f_locals['left'],int) and isinstance(frame.f_locals['right'],int):
+        focus['range']=[frame.f_locals['left'],frame.f_locals['right']]
+    elif 'start' in frame.f_locals and 'end' in frame.f_locals and isinstance(frame.f_locals['start'],int) and isinstance(frame.f_locals['end'],int):
+        focus['range']=[frame.f_locals['start'],frame.f_locals['end']]
+    elif 'start' in frame.f_locals and isinstance(frame.f_locals['start'],int):
+        candidate=next((value for value in frame.f_locals.values() if isinstance(value,(list,tuple))),None)
+        if candidate: focus['range']=[frame.f_locals['start'],len(candidate)-1]
+    elif 'end' in frame.f_locals and isinstance(frame.f_locals['end'],int) and source.startswith('for '):
+        focus['range']=[0,frame.f_locals['end']]
+    if '.appendleft(' in lower or '.popleft(' in lower or '.pop(0)' in lower: focus['direction']='left'
+    elif '.append(' in lower or '.pop(' in lower: focus['direction']='right'
+    if not focus['indices']:
+        for name in ('i','j','index','left','right','middle','mid','start','end','node','neighbor','item','target'):
+            if name in frame.f_locals: focus['names'].append(name)
+    return focus
+def add_event(frame, kind, op, before=None, after=None, inst=None, result=None, branch=None, line_override=None, source_override=None, variables_override=None, globals_override=None, arguments_override=None, focus_override=None, output_override=None):
+    if len(events)>=event_limit: raise TraceLimit('Trace stopped after '+str(event_limit)+' meaningful events.')
+    line=line_override if line_override is not None else line_for(frame,inst)
+    statement=source_override if source_override is not None else source_line(line)
+    local=variables_override if variables_override is not None else visible(frame.f_locals)
+    global_values=globals_override if globals_override is not None else (visible(frame.f_globals) if frame.f_code.co_name!='<module>' else {})
+    arguments=arguments_override if arguments_override is not None else args_for(frame)
+    call_stack=[{'name':f.f_code.co_name,'line':f.f_lineno,'arguments':args_for(f)} for f in frames]
+    if line_override is not None and call_stack and call_stack[-1]['name']==frame.f_code.co_name: call_stack[-1]['line']=line_override
+    if arguments_override is not None and call_stack and call_stack[-1]['name']==frame.f_code.co_name: call_stack[-1]['arguments']=arguments_override
+    focus=focus_override if focus_override is not None else infer_focus(statement,frame)
+    if branch is not None: focus['result']='taken' if branch else 'not taken'
+    item={'step':len(events)+1,'line':line,'statement':statement,'eventType':op,'operation':op,'function':frame.f_code.co_name,'depth':max(0,len(frames)-1),'variables':local,'globals':global_values,'arguments':arguments,'beforeState':before if before is not None else full_state(frame),'afterState':after if after is not None else full_state(frame),'state':after if after is not None else full_state(frame),'focus':focus,'explanation':'','callStack':call_stack}
+    if op=='return': item['returnValue']=norm(result)
+    elif result is not None and op!='error': item['returnValue']=norm(result)
+    if output_override is not None: item['output']=output_override
+    if op=='compare' and focus['values']: item['explanation']='Comparing '+', '.join(map(str,focus['values']))
+    elif op=='branch' and branch is not None: item['explanation']='Condition '+('was true; branch taken' if branch else 'was false; branch skipped')
+    elif op in ('call','return'): item['explanation']=('Calling ' if op=='call' else 'Returning from ')+frame.f_code.co_name
+    elif op=='error': item['explanation']=str(result or statement)
+    elif output_override is not None: item['explanation']='Program output: '+output_override.strip()
+    elif before!=after and op not in ('line','assign'): item['explanation']=op.title()+' changed the data structure state'
+    else: item['explanation']=(op.title()+' · ' if op!='line' else 'Executing · ')+statement
+    events.append(item)
+def get_inst(frame):
+    code=frame.f_code
+    if code not in instruction_maps: instruction_maps[code]={i.offset:i for i in dis.get_instructions(code)}
+    return instruction_maps[code].get(frame.f_lasti)
+def commit_previous(frame):
+    prior=last_by_frame.get(id(frame))
+    after=full_state(frame)
+    if not prior: return
+    inst,before,prior_source,prior_line=prior
+    if before!=after:
+        src=prior_source or source_line(line_for(frame,inst))
+        targets=target_names(src)
+        operation=classify(src,'opcode',inst) if inst is not None else mutation_operation(src,before,after,last_context.get(id(frame),{}).get('variables') or {})
+        if inst is not None:
+            op=operation
+            if op in ('line','read','compare','branch','call','return'): op=method_operation(src) if method_operation(src)!='line' else ('write' if inst.opname=='STORE_SUBSCR' else 'assign')
+            if inst.opname=='CALL' and op=='line': op=method_operation(src)
+        else:
+            op=operation
+            if op in ('line','compare','branch','call','return'): op='assign'
+        context=last_context.get(id(frame),{})
+        primary=dict(before)
+        for name in targets:
+            if name in after: primary[name]=after[name]
+            else: primary.pop(name,None)
+        variables=dict(context.get('variables') or {})
+        for name in targets:
+            if name in after: variables[name]=after[name]
+            else: variables.pop(name,None)
+        focus=context.get('focus')
+        add_event(frame,'mutation',op,before,primary,inst,line_override=prior_line or None,source_override=src,variables_override=variables,globals_override=context.get('globals'),arguments_override=context.get('arguments'),focus_override=focus)
+        remainder_before=dict(primary)
+        for name in targets:
+            if name in before: remainder_before[name]=before[name]
+            else: remainder_before.pop(name,None)
+        extras={name for name in set(before)|set(after) if before.get(name,'<missing>')!=after.get(name,'<missing>') and name not in targets}
+        if extras:
+            current_line=frame.f_lineno
+            current_source=source_line(current_line)
+            current_vars=visible(frame.f_locals)
+            next_op='assign' if any(name in frame.f_locals for name in extras) else 'update'
+            add_event(frame,'mutation',next_op,remainder_before,after,line_override=current_line,source_override=current_source,variables_override=current_vars,globals_override=visible(frame.f_globals) if frame.f_code.co_name!='<module>' else {},arguments_override=args_for(frame),focus_override=infer_focus(current_source,frame))
+    context=last_context.get(id(frame),{})
+    printed=stdout_buffer.getvalue()
+    output_chunk=printed[context.get('output_size',0):]
+    if output_chunk:
+        state_now=full_state(frame)
+        add_event(frame,'output','write',state_now,state_now,line_override=prior[3] or None,source_override=prior[2],variables_override=context.get('variables'),globals_override=context.get('globals'),arguments_override=context.get('arguments'),focus_override=context.get('focus'),output_override=output_chunk)
+        context['output_size']=len(printed)
+def tracer(frame,event,arg):
+    global op_count
+    if frame.f_code.co_filename!='<exec>': return tracer
+    if event=='call':
+        frames.append(frame)
+        frame.f_trace_opcodes=False
+        frame.f_trace_lines=True
+        add_event(frame,'call','call',{},full_state(frame))
+        last_by_frame[id(frame)]=(None,full_state(frame),'',0)
+        last_context[id(frame)]={'variables':visible(frame.f_locals),'globals':visible(frame.f_globals) if frame.f_code.co_name!='<module>' else {},'arguments':args_for(frame),'focus':infer_focus('',frame),'output_size':len(stdout_buffer.getvalue())}
+    elif event=='line':
+        commit_previous(frame)
+        pending=pending_conditions.pop(id(frame),None)
+        if pending:
+            pending_line,pending_source,pending_indent,pending_state=pending
+            current_source=source_line(frame.f_lineno)
+            raw_current=SOURCE[frame.f_lineno-1] if 0 < frame.f_lineno <= len(SOURCE) else current_source
+            current_indent=len(raw_current)-len(raw_current.lstrip())
+            taken=current_indent>pending_indent
+            add_event(frame,'branch','branch',pending_state,full_state(frame),branch=taken,line_override=pending_line,source_override=pending_source)
+        before=full_state(frame)
+        src=source_line(frame.f_lineno)
+        op='compare' if classify(src)=='compare' else ('read' if '[' in src and ']' in src or ('.' in src and '=' in src and not src.strip().startswith('def ')) else 'line')
+        add_event(frame,'line',op,before,before)
+        if src.startswith(('if ','elif ','while ','for ')):
+            raw_source=SOURCE[frame.f_lineno-1] if 0 < frame.f_lineno <= len(SOURCE) else src
+            indent=len(raw_source)-len(raw_source.lstrip())
+            pending_conditions[id(frame)]=(frame.f_lineno,src,indent,before)
+        last_by_frame[id(frame)]=(None,before,src,frame.f_lineno)
+        last_context[id(frame)]={'variables':visible(frame.f_locals),'globals':visible(frame.f_globals) if frame.f_code.co_name!='<module>' else {},'arguments':args_for(frame),'focus':infer_focus(src,frame),'output_size':len(stdout_buffer.getvalue())}
+    elif event=='opcode':
+        op_count+=1
+        if op_count>300000: raise TraceLimit('Execution stopped after 300,000 Python instructions (possible infinite loop).')
+        commit_previous(frame)
+        inst=get_inst(frame)
+        before=full_state(frame)
+        if inst:
+            op=classify(source_line(line_for(frame,inst)),'opcode',inst)
+            if op=='compare' and classify(source_line(line_for(frame,inst)))=='compare': pass
+            elif op in ('compare','read','lookup','rotate','merge','partition'):
+                add_event(frame,'opcode',op,before,before,inst)
+        last_by_frame[id(frame)]=(inst,before,source_line(line_for(frame,inst)),line_for(frame,inst))
+        last_context[id(frame)]={'variables':visible(frame.f_locals),'globals':visible(frame.f_globals) if frame.f_code.co_name!='<module>' else {},'arguments':args_for(frame),'focus':infer_focus(source_line(line_for(frame,inst)),frame),'output_size':len(stdout_buffer.getvalue())}
+    elif event=='return':
+        commit_previous(frame)
+        add_event(frame,'return','return',full_state(frame),full_state(frame),get_inst(frame),arg)
+        last_by_frame.pop(id(frame),None)
+        last_context.pop(id(frame),None)
+        pending_conditions.pop(id(frame),None)
+        if frames and frames[-1] is frame: frames.pop()
+    elif event=='exception':
+        exc=arg[1]
+        add_event(frame,'error','error',full_state(frame),full_state(frame),get_inst(frame),str(exc))
+    return tracer
+namespace={'__name__':'__main__'}
+stdout_buffer=io.StringIO()
+program_error=False
+try:
+    sys.settrace(tracer)
+    with contextlib.redirect_stdout(stdout_buffer): exec(compile(USER_CODE,'<exec>','exec'),namespace,namespace)
+except BaseException as exc:
+    sys.settrace(None)
+    program_error=True
+    frame=frames[-1] if frames else None
+    existing_error=next((item for item in reversed(events) if item.get('eventType')=='error'),None)
+    if existing_error:
+        terminal=dict(existing_error); terminal['step']=len(events)+1; terminal['explanation']=str(exc); events.append(terminal)
+    elif frame:
+        try: add_event(frame,'error','error',full_state(frame),full_state(frame),get_inst(frame),str(exc))
+        except Exception:
+            events.append({'step':len(events)+1,'line':frame.f_lineno,'statement':source_line(frame.f_lineno),'eventType':'error','operation':'error','function':frame.f_code.co_name,'depth':max(0,len(frames)-1),'variables':visible(frame.f_locals),'globals':visible(frame.f_globals),'arguments':args_for(frame),'beforeState':full_state(frame),'afterState':full_state(frame),'state':full_state(frame),'focus':{},'explanation':str(exc),'callStack':[]})
+    else:
+        error_line=getattr(exc,'lineno',0) or 0
+        error_statement=(getattr(exc,'text',None) or source_line(error_line)).strip()
+        explanation=str(exc)
+        if isinstance(exc,SyntaxError) and 'line continuation character' in explanation.lower() and r'\n' in error_statement:
+            explanation += " — this line contains a literal backslash-n sequence. Replace it with an actual line break between statements."
+        events.append({'step':len(events)+1,'line':error_line,'statement':error_statement,'eventType':'error','operation':'error','function':'<module>','depth':0,'variables':{},'globals':{},'arguments':{},'beforeState':{},'afterState':{},'state':{},'focus':{},'explanation':explanation,'callStack':[]})
+finally:
+    sys.settrace(None)
+if not program_error:
+    events.append({'step':len(events)+1,'line':len(SOURCE),'statement':'','eventType':'complete','operation':'complete','function':'<module>','depth':0,'variables':visible(namespace),'globals':{},'arguments':{},'beforeState':{},'afterState':visible(namespace),'state':visible(namespace),'focus':{},'explanation':'Program completed','callStack':[]})
+json.dumps(events)`;
+
+export async function tracePython(code: string): Promise<TraceEvent[]> {
+  const py = await loadPython();
+  const runner = buildTraceProgram(code);
+  const raw = await py.runPythonAsync(runner);
+  const parsed = JSON.parse(String(raw)) as Array<Omit<TraceEvent, 'structure'>>;
+  return parsed.map(event => ({ ...event, structure: detectStructure(event, code) }));
+}
+
+export function buildTraceProgram(code: string, eventLimit = 12000): string {
+  return PYTHON_TRACE.replace('__USER_CODE__', JSON.stringify(preparePython(code))).replace('__EVENT_LIMIT__', String(eventLimit));
+}

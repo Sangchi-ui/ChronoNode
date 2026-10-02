@@ -1,0 +1,5 @@
+.graph-node.visited-node{fill:#214660;stroke:#86bdff}
+.graph-node.discovered-node{fill:#584421;stroke:#ffc76a}
+.graph-edge.active-edge{filter:drop-shadow(0 0 4px #d7f67599)}
+.tree-node.active-node{fill:#765b2c;stroke:#ffc76a;stroke-width:3}
+.tree-edge.active-edge{stroke:#d7f675;stroke-width:3}
