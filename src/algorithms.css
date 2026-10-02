@@ -133,11 +133,11 @@
   box-shadow: 0 0 10px rgba(196, 243, 74, 0.15);
 }
 
-/* Responsive 5-Column Grid Layout (Wide Rectangles) */
+/* Responsive 6-Column Grid Layout (Square Cards) */
 .algo-grid {
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 24px;
+  gap: 16px;
   margin-top: 18px;
   padding-bottom: 40px;
   width: 100%;
@@ -149,51 +149,55 @@
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
   .algo-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-@media (min-width: 1280px) {
+@media (min-width: 1024px) {
   .algo-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
-@media (min-width: 1536px) {
+@media (min-width: 1280px) {
   .algo-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
-/* Wide Rectangular Algorithm Cards */
+@media (min-width: 1536px) {
+  .algo-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+/* Minimalist Square Algorithm Cards (No Glow Effect) */
 .algo-card {
+  aspect-ratio: 1 / 1;
   width: 100%;
-  min-height: 210px;
-  background: radial-gradient(ellipse at 50% -10%, rgba(35, 48, 16, 0.45) 0%, rgba(13, 20, 28, 0.94) 80%);
-  border: 1px solid rgba(196, 243, 74, 0.25);
-  border-radius: 18px;
-  padding: 24px 26px;
+  background: #141c28;
+  border: 1px solid #28374d;
+  border-radius: 14px;
+  padding: 18px 20px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   text-align: left;
   cursor: pointer;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 6px 24px -2px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(196, 243, 74, 0.3);
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, background 0.2s ease;
 }
 
 .algo-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(196, 243, 74, 0.7);
-  background: radial-gradient(ellipse at 50% -10%, rgba(46, 64, 20, 0.55) 0%, rgba(15, 24, 34, 0.98) 80%);
-  box-shadow: 0 18px 38px -4px rgba(0, 0, 0, 0.7), 0 0 24px rgba(196, 243, 74, 0.25), inset 0 1px 0 rgba(196, 243, 74, 0.6);
+  transform: translateY(-3px);
+  border-color: #c4f34a;
+  background: #192333;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
 .algo-card:active {
@@ -210,7 +214,7 @@
 
 .algo-card-top {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   width: 100%;
 }
@@ -218,271 +222,52 @@
 .algo-card-category {
   font-size: 11px;
   font-weight: 600;
-  color: #8da467;
+  color: #7d90a8;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.algo-card-chip {
-  background: rgba(28, 38, 16, 0.7);
-  border: 1.5px solid #c4f34a;
-  color: #c4f34a;
-  border-radius: 9999px;
-  padding: 3px 12px;
-  font-size: 12.5px;
-  font-weight: 700;
-  font-family: inherit;
-  white-space: nowrap;
-  box-shadow: 0 0 12px rgba(196, 243, 74, 0.22);
-  transition: all 0.2s ease;
-}
-
-.algo-card:hover .algo-card-chip {
-  border-color: #d9f99d;
-  color: #d9f99d;
-  box-shadow: 0 0 16px rgba(196, 243, 74, 0.45);
-}
-
-/* Card Center Graphic Container */
-.algo-card-graphic-container {
-  width: 100%;
-  margin: 12px 0 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 56px;
-}
-
-.mini-graphic {
-  width: 100%;
-  height: 56px;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  overflow: visible;
-  transition: all 0.25s ease;
-}
-
-/* 1. Searching Graphic: 7 blocks with glowing center cube */
-.searching-graphic .graphic-block {
-  width: 18px;
-  height: 14px;
-  border-radius: 3px;
-  background: rgba(30, 42, 18, 0.55);
-  border: 1px solid rgba(196, 243, 74, 0.28);
-  box-shadow: inset 0 1px 0 rgba(196, 243, 74, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.searching-graphic .graphic-block.is-target {
-  width: 28px;
-  height: 28px;
-  border-radius: 5px;
-  background: linear-gradient(135deg, #c4f34a 0%, #a3e635 100%);
-  border: 1px solid #ecfccb;
-  box-shadow: 0 0 24px rgba(196, 243, 74, 0.95), 0 0 45px rgba(196, 243, 74, 0.4);
-  transform: scale(1.1);
-}
-
-.algo-card:hover .searching-graphic .graphic-block.is-target {
-  box-shadow: 0 0 36px rgba(196, 243, 74, 1), 0 0 60px rgba(196, 243, 74, 0.6);
-  transform: scale(1.18);
-}
-
-/* 2. Sorting Graphic */
-.sorting-graphic .graphic-bar {
-  width: 10px;
-  border-top-left-radius: 3px;
-  border-top-right-radius: 3px;
-  background: rgba(30, 42, 18, 0.6);
-  border-top: 1px solid rgba(196, 243, 74, 0.3);
-  border-left: 1px solid rgba(196, 243, 74, 0.3);
-  border-right: 1px solid rgba(196, 243, 74, 0.3);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.sorting-graphic .bar-1 { height: 12px; }
-.sorting-graphic .bar-2 { height: 20px; }
-.sorting-graphic .bar-3.is-pivot {
-  height: 34px;
-  background: linear-gradient(180deg, #d9f99d 0%, #a3e635 100%);
-  border-color: #d9f99d;
-  box-shadow: 0 0 18px rgba(196, 243, 74, 0.95);
-}
-.sorting-graphic .bar-4.is-highlight {
-  height: 26px;
-  background: rgba(196, 243, 74, 0.85);
-  border-color: #d9f99d;
-  box-shadow: 0 0 12px rgba(196, 243, 74, 0.7);
-}
-.sorting-graphic .bar-5 { height: 16px; }
-
-.algo-card:hover .sorting-graphic .bar-3.is-pivot {
-  box-shadow: 0 0 26px rgba(196, 243, 74, 1);
-  transform: scaleY(1.06);
-}
-
-/* 3. Tree & Graph Graphic */
-.tree-graph-graphic .center-glowing-cube {
-  width: 26px;
-  height: 26px;
-  border-radius: 4px;
-  background: linear-gradient(135deg, #c4f34a 0%, #a3e635 100%);
-  border: 1px solid #ecfccb;
-  box-shadow: 0 0 24px rgba(196, 243, 74, 0.95), 0 0 40px rgba(196, 243, 74, 0.4);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.tree-graph-graphic .outer-node {
-  width: 14px;
-  height: 14px;
-  border-radius: 2px;
-  background: rgba(30, 42, 18, 0.65);
-  border: 1px solid rgba(196, 243, 74, 0.35);
-  box-shadow: inset 0 1px 0 rgba(196, 243, 74, 0.2);
-}
-
-.tree-graph-graphic .graphic-node.is-root {
-  width: 14px;
-  height: 14px;
-  border-radius: 9999px;
-  background: #c4f34a;
-  border: 1.5px solid #d9f99d;
-  box-shadow: 0 0 16px rgba(196, 243, 74, 0.95);
-}
-
-.tree-graph-graphic .graphic-node.child-node {
-  width: 12px;
-  height: 12px;
-  border-radius: 9999px;
-  background: rgba(30, 42, 18, 0.85);
-  border: 1px solid rgba(196, 243, 74, 0.35);
-}
-
-.tree-graph-graphic .graphic-node.is-active-child {
-  background: rgba(196, 243, 74, 0.85);
-  border-color: #d9f99d;
-  box-shadow: 0 0 12px rgba(196, 243, 74, 0.75);
-}
-
-.algo-card:hover .tree-graph-graphic .center-glowing-cube {
-  box-shadow: 0 0 36px rgba(196, 243, 74, 1), 0 0 55px rgba(196, 243, 74, 0.6);
-  transform: scale(1.15);
-}
-
-/* 4. DP & Matrix Graphic */
-.dp-matrix-graphic .dp-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  padding: 4px;
-  border-radius: 4px;
-  background: rgba(20, 28, 14, 0.6);
-  border: 1px solid rgba(196, 243, 74, 0.3);
-}
-
-.dp-matrix-graphic .dp-cell {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  background: rgba(30, 42, 18, 0.65);
-  border: 1px solid rgba(196, 243, 74, 0.25);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.dp-matrix-graphic .dp-cell.is-computed {
-  background: rgba(196, 243, 74, 0.5);
-  border-color: rgba(196, 243, 74, 0.8);
-  box-shadow: 0 0 8px rgba(196, 243, 74, 0.45);
-}
-
-.dp-matrix-graphic .dp-cell.is-optimal {
-  background: #c4f34a;
-  border-color: #ecfccb;
-  box-shadow: 0 0 16px rgba(196, 243, 74, 1);
-  transform: scale(1.12);
-}
-
-/* 5. Default / Mathematical Graphic */
-.math-default-graphic .overlapping-square {
-  width: 22px;
-  height: 22px;
-  border-radius: 3px;
-  position: absolute;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.math-default-graphic .square-back {
-  top: 0;
-  left: 0;
-  border: 1.5px solid rgba(196, 243, 74, 0.35);
-  background: rgba(30, 42, 18, 0.4);
-}
-
-.math-default-graphic .square-front {
-  bottom: 0;
-  right: 0;
-  border: 1.5px solid #c4f34a;
-  background: rgba(20, 28, 14, 0.65);
-  box-shadow: 0 0 16px rgba(196, 243, 74, 0.85);
-}
-
-.algo-card:hover .math-default-graphic .square-front {
-  box-shadow: 0 0 24px rgba(196, 243, 74, 1);
-  transform: scale(1.08);
-}
-
-/* Card Title & Bottom Row */
-.algo-card-bottom-group {
-  margin-top: auto;
-}
-
 .algo-card-title {
-  margin: 6px 0 6px;
-  font-size: 22px;
+  margin: auto 0;
+  font-size: 16.5px;
   font-weight: 700;
-  color: #ffffff;
-  line-height: 1.25;
-  letter-spacing: -0.015em;
+  color: #f1f5f9;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-align: left;
 }
 
-.algo-card-bottom {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 4px;
-  border-top: none;
+.algo-card:hover .algo-card-title {
+  color: #ffffff;
 }
 
-.algo-card-space {
-  color: #64748b;
-  font-size: 13.5px;
-  font-weight: 500;
+.algo-card-bottom {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+  padding-top: 4px;
 }
 
 .algo-card-prompt {
   color: #c4f34a;
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 600;
   display: flex;
   align-items: center;
   gap: 4px;
-  transition: transform 0.18s ease, color 0.18s ease;
+  transition: transform 0.18s ease;
 }
 
 .algo-card:hover .algo-card-prompt {
   transform: translateX(3px);
-  color: #d9f99d;
 }
 
 /* Empty State */

@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Search, X, BookOpen, ArrowRight } from 'lucide-react';
 import { allAlgorithms, algorithmCategories, type AlgorithmData } from './data/algorithms';
-import { MiniGraphic } from './MiniGraphic';
 
 interface AlgorithmsPanelProps {
   onSelectAlgorithm: (algo: AlgorithmData) => void;
@@ -38,7 +37,7 @@ export function AlgorithmsPanel({ onSelectAlgorithm }: AlgorithmsPanelProps) {
           <Search size={16} className="search-icon" />
           <input
             type="text"
-            placeholder="Search algorithms, concepts, complexities..."
+            placeholder="Search algorithms, concepts..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             aria-label="Search algorithms"
@@ -74,34 +73,27 @@ export function AlgorithmsPanel({ onSelectAlgorithm }: AlgorithmsPanelProps) {
         ))}
       </div>
 
-      {/* 5-Column Responsive Card Grid (Wide Rectangles) */}
+      {/* 6-Column Responsive Card Grid (Square Cards, Clean Design) */}
       <div
-        className="algo-grid w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6"
+        className="algo-grid w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
         role="grid"
       >
         {filteredAlgorithms.map(algo => (
           <button
             key={algo.id}
-            className="algo-card p-6 min-h-[210px] flex flex-col justify-between"
+            className="algo-card aspect-square"
             onClick={() => onSelectAlgorithm(algo)}
             aria-label={`Open learning page for ${algo.name}`}
           >
-            <div className="algo-card-inner flex flex-col justify-between h-full w-full">
-              <div className="algo-card-top flex justify-between items-center w-full">
+            <div className="algo-card-inner">
+              <div className="algo-card-top">
                 <span className="algo-card-category">{algo.category.replace(' Algorithms', '')}</span>
-                <span className="algo-card-chip">{algo.complexity.time}</span>
               </div>
-              <div className="algo-card-graphic-container my-auto py-2 flex items-center justify-center w-full">
-                <MiniGraphic category={algo.category} />
-              </div>
-              <div className="algo-card-bottom-group mt-2">
-                <h3 className="algo-card-title">{algo.name}</h3>
-                <div className="algo-card-bottom flex justify-between items-center w-full">
-                  <span className="algo-card-space">Space {algo.complexity.space}</span>
-                  <span className="algo-card-prompt flex items-center gap-1">
-                    Learn <ArrowRight size={13} style={{ display: 'inline', marginLeft: 2 }} />
-                  </span>
-                </div>
+              <h3 className="algo-card-title">{algo.name}</h3>
+              <div className="algo-card-bottom">
+                <span className="algo-card-prompt">
+                  Learn <ArrowRight size={13} style={{ display: 'inline', marginLeft: 2 }} />
+                </span>
               </div>
             </div>
           </button>

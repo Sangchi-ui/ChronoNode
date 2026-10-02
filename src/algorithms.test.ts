@@ -199,93 +199,79 @@ describe('Algorithms Registry', () => {
     });
   });
 
-  describe('Dynamic Category-Based Graphics (MiniGraphic)', () => {
-    it('is integrated into algorithm cards in AlgorithmsPanel', () => {
-      expect(algorithmsPanelTsx).toContain("import { MiniGraphic } from './MiniGraphic'");
-      expect(algorithmsPanelTsx).toContain('<MiniGraphic category={algo.category} />');
-      expect(algorithmsPanelTsx).toContain('algo-card-graphic-container');
-    });
-
+  describe('Dynamic Category-Based Graphics Component (MiniGraphic)', () => {
     it('uses strictly pure HTML div elements without SVGs or images', () => {
       expect(miniGraphicTsx).not.toMatch(/<svg[\s>]/i);
       expect(miniGraphicTsx).not.toMatch(/<img[\s>]/i);
       expect(miniGraphicTsx).toContain('<div');
     });
 
-    it('renders category-specific shapes with glassmorphism and neon-green glow', async () => {
+    it('renders category-specific shapes with signature #c4f34a accent', async () => {
       const { MiniGraphic } = await import('./MiniGraphic');
       const React = await import('react');
 
-      // 1. Searching: horizontal row of blocks with glowing neon green block
+      // 1. Searching
       const searchShape = MiniGraphic({ category: 'Searching Algorithms' });
       expect(searchShape.props['data-category-shape']).toBe('searching');
       expect(searchShape.props.className).toContain('searching-graphic');
 
-      // 2. Sorting: vertical bars of varying heights with neon green highlights
+      // 2. Sorting
       const sortShape = MiniGraphic({ category: 'Sorting Algorithms' });
       expect(sortShape.props['data-category-shape']).toBe('sorting');
       expect(sortShape.props.className).toContain('sorting-graphic');
 
-      // 3. Trees & Graphs: triangular / tree formation of nodes
+      // 3. Trees & Graphs
       const treeShape = MiniGraphic({ category: 'Tree Algorithms' });
       expect(treeShape.props['data-category-shape']).toBe('trees-graphs');
       const graphShape = MiniGraphic({ category: 'Graph Algorithms' });
       expect(graphShape.props['data-category-shape']).toBe('trees-graphs');
 
-      // 4. Dynamic Programming (DP) / Matrices: miniature 3x3 square grid
+      // 4. Dynamic Programming (DP) / Matrices
       const dpShape = MiniGraphic({ category: 'Dynamic Programming (DP) Algorithms' });
       expect(dpShape.props['data-category-shape']).toBe('dp-matrices');
 
-      // 5. Default / Mathematical: two overlapping hollow CSS squares
+      // 5. Default / Mathematical
       const mathShape = MiniGraphic({ category: 'Mathematical & Number Theory Algorithms' });
       expect(mathShape.props['data-category-shape']).toBe('math-default');
-      const geomShape = MiniGraphic({ category: 'Computational Geometry Algorithms' });
-      expect(geomShape.props['data-category-shape']).toBe('math-default');
-    });
-
-    it('defines glassmorphic and neon-green glow styling in algorithms.css', () => {
-      expect(algorithmsCss).toContain('.algo-card-graphic-container');
-      expect(algorithmsCss).toContain('.mini-graphic');
-      expect(algorithmsCss).toContain('.searching-graphic');
-      expect(algorithmsCss).toContain('.sorting-graphic');
-      expect(algorithmsCss).toContain('.tree-graph-graphic');
-      expect(algorithmsCss).toContain('.dp-matrix-graphic');
-      expect(algorithmsCss).toContain('.math-default-graphic');
-      // Neon green glow color
-      expect(algorithmsCss).toContain('#c4f34a');
-      expect(algorithmsCss).toContain('rgba(196, 243, 74');
     });
   });
 
-  describe('5-Column Responsive Grid Layout & Wide Rectangular Cards', () => {
-    it('implements responsive 5-column grid with gap-6', () => {
+  describe('6-Column Responsive Grid Layout & Minimalist Square Cards', () => {
+    it('implements responsive 6-column grid on large screens', () => {
       // 1. Breakpoint classes in JSX
       expect(algorithmsPanelTsx).toContain('grid-cols-1');
       expect(algorithmsPanelTsx).toContain('sm:grid-cols-2');
-      expect(algorithmsPanelTsx).toContain('lg:grid-cols-3');
-      expect(algorithmsPanelTsx).toContain('xl:grid-cols-4');
-      expect(algorithmsPanelTsx).toContain('2xl:grid-cols-5');
-      expect(algorithmsPanelTsx).toContain('gap-6');
+      expect(algorithmsPanelTsx).toContain('md:grid-cols-3');
+      expect(algorithmsPanelTsx).toContain('lg:grid-cols-4');
+      expect(algorithmsPanelTsx).toContain('xl:grid-cols-5');
+      expect(algorithmsPanelTsx).toContain('2xl:grid-cols-6');
+      expect(algorithmsPanelTsx).toContain('gap-4');
 
-      // 2. CSS Media Queries for 5 columns on large screens
-      expect(algorithmsCss).toMatch(/@media\s*\(min-width:\s*1536px\)\s*\{\s*\.algo-grid\s*\{[^}]*grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\);/);
-      expect(algorithmsCss).toMatch(/\.algo-grid\s*\{[^}]*gap:\s*24px;/);
+      // 2. CSS Media Queries for 6 columns on large screens
+      expect(algorithmsCss).toMatch(/@media\s*\(min-width:\s*1536px\)\s*\{\s*\.algo-grid\s*\{[^}]*grid-template-columns:\s*repeat\(6,\s*minmax\(0,\s*1fr\)\);/);
+      expect(algorithmsCss).toMatch(/\.algo-grid\s*\{[^}]*gap:\s*16px;/);
     });
 
-    it('removes square aspect-ratio and enforces wide rectangular proportions with generous padding', () => {
-      // 1. No aspect-square or aspect-ratio: 1 / 1
-      expect(algorithmsCss).not.toMatch(/\.algo-card\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1/);
-      expect(algorithmsPanelTsx).not.toContain('aspect-square');
+    it('enforces square aspect-ratio on each card', () => {
+      expect(algorithmsCss).toMatch(/\.algo-card\s*\{[^}]*aspect-ratio:\s*1\s*\/\s*1;/);
+      expect(algorithmsPanelTsx).toContain('aspect-square');
+    });
 
-      // 2. Minimum height and generous padding
-      expect(algorithmsCss).toMatch(/\.algo-card\s*\{[^}]*min-height:\s*210px;/);
-      expect(algorithmsCss).toMatch(/\.algo-card\s*\{[^}]*padding:\s*24px\s+26px;/);
-      expect(algorithmsPanelTsx).toContain('p-6');
-      expect(algorithmsPanelTsx).toContain('min-h-[210px]');
+    it('removes the glow effect, inner graphic designs, and complexity metrics from the cards', () => {
+      // 1. No inner graphic designs in card
+      expect(algorithmsPanelTsx).not.toContain('<MiniGraphic');
+      expect(algorithmsPanelTsx).not.toContain('algo-card-graphic-container');
 
-      // 3. Inner layout space distribution
-      expect(algorithmsPanelTsx).toContain('flex flex-col justify-between h-full');
-      expect(algorithmsCss).toMatch(/\.algo-card-inner\s*\{[^}]*justify-content:\s*space-between;/);
+      // 2. No time or space complexity readouts
+      expect(algorithmsPanelTsx).not.toContain('algo.complexity.time');
+      expect(algorithmsPanelTsx).not.toContain('algo.complexity.space');
+      expect(algorithmsPanelTsx).not.toContain('algo-card-chip');
+      expect(algorithmsPanelTsx).not.toContain('algo-card-space');
+
+      // 3. Clean typography & prompt layout
+      expect(algorithmsPanelTsx).toContain('algo-card-category');
+      expect(algorithmsPanelTsx).toContain('algo-card-title');
+      expect(algorithmsPanelTsx).toContain('algo-card-prompt');
     });
   });
 });
