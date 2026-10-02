@@ -4,6 +4,8 @@ import { ALL_ALGORITHMS, ALGORITHM_CATEGORIES } from './data/algorithms';
 let algorithmsCss = '';
 let algorithmsPanelTsx = '';
 let miniGraphicTsx = '';
+let detailPageTsx = '';
+let embeddedVisualizerTsx = '';
 
 beforeAll(async () => {
   // @ts-ignore
@@ -11,6 +13,8 @@ beforeAll(async () => {
   algorithmsCss = fs.readFileSync(new URL('./algorithms.css', import.meta.url), 'utf-8');
   algorithmsPanelTsx = fs.readFileSync(new URL('./AlgorithmsPanel.tsx', import.meta.url), 'utf-8');
   miniGraphicTsx = fs.readFileSync(new URL('./MiniGraphic.tsx', import.meta.url), 'utf-8');
+  detailPageTsx = fs.readFileSync(new URL('./AlgorithmDetailPage.tsx', import.meta.url), 'utf-8');
+  embeddedVisualizerTsx = fs.readFileSync(new URL('./EmbeddedVisualizer.tsx', import.meta.url), 'utf-8');
 });
 
 describe('Algorithms Registry', () => {
@@ -272,6 +276,114 @@ describe('Algorithms Registry', () => {
       expect(algorithmsPanelTsx).toContain('algo-card-category');
       expect(algorithmsPanelTsx).toContain('algo-card-title');
       expect(algorithmsPanelTsx).toContain('algo-card-prompt');
+    });
+  });
+
+  /* ------------------------------------------------------------------------
+     Phase 1: Educational Content Integration & Edge-to-Edge Execution Layout
+     ------------------------------------------------------------------------ */
+  describe('Phase 1: Dynamic Detail Page Layout & Exhaustive Searching Content', () => {
+    describe('1. Structural Layout Overhaul', () => {
+      it('uses wide reading container (max-w-7xl mx-auto px-8) for top educational content', () => {
+        expect(detailPageTsx).toContain('detail-content-container max-w-7xl mx-auto px-8 w-full');
+        expect(algorithmsCss).toMatch(/\.detail-content-container\s*\{[^}]*max-width:\s*80rem;/);
+        expect(algorithmsCss).toMatch(/\.detail-content-container\s*\{[^}]*width:\s*100%;/);
+      });
+
+      it('breaks bottom execution environment out of container to span 100% edge-to-edge', () => {
+        expect(detailPageTsx).toContain('className="execution-environment-section w-full max-w-none"');
+        expect(detailPageTsx).toContain('className="embedded-visualizer-outer w-full max-w-none"');
+        expect(algorithmsCss).toMatch(/\.execution-environment-section\s*\{[^}]*width:\s*100%;/);
+        expect(algorithmsCss).toMatch(/\.execution-environment-section\s*\{[^}]*max-width:\s*100vw;/);
+        expect(algorithmsCss).toMatch(/\.embedded-visualizer-container\s*\{[^}]*border-radius:\s*0;/);
+      });
+
+      it('enforces a strict 50/50 split-pane layout for code editor and visualizer canvas', () => {
+        expect(algorithmsCss).toMatch(/\.embedded-split-workspace\s*\{[^}]*grid-template-columns:\s*1fr\s+1fr;/);
+        expect(embeddedVisualizerTsx).toContain('embedded-split-workspace');
+        expect(embeddedVisualizerTsx).toContain('embedded-code-pane');
+        expect(embeddedVisualizerTsx).toContain('embedded-visual-pane');
+      });
+    });
+
+    describe('2. Visualizer Engine Integration', () => {
+      it('connects ChronoNode execution engine (tracePython) to run Python code client-side', () => {
+        expect(embeddedVisualizerTsx).toMatch(/import\s*\{\s*tracePython/);
+        expect(embeddedVisualizerTsx).toContain('await tracePython(');
+        expect(embeddedVisualizerTsx).toContain('<PanZoomCanvas>');
+        expect(embeddedVisualizerTsx).toContain('<Visual event={event}');
+        expect(embeddedVisualizerTsx).toContain('<ComplexityOdometer');
+      });
+    });
+
+    describe('3. Exhaustive Content for First 4 Searching Algorithms', () => {
+      const targetSearchAlgoNames = [
+        'Linear Search',
+        'Binary Search',
+        'Ternary Search',
+        'Jump Search',
+      ];
+
+      for (const algoName of targetSearchAlgoNames) {
+        describe(`Algorithm: ${algoName}`, () => {
+          const algo = ALL_ALGORITHMS.find(a => a.name === algoName);
+
+          it('is registered with valid metadata', () => {
+            expect(algo).toBeDefined();
+            expect(algo?.category).toBe('Searching Algorithms');
+          });
+
+          it('has exhaustive GeeksforGeeks-grade In-Depth Explanation & Real-World Analogy', () => {
+            expect(algo?.inDepthExplanation).toBeDefined();
+            expect((algo?.inDepthExplanation || '').length).toBeGreaterThan(300);
+            expect(algo?.realWorldExample).toBeDefined();
+            expect((algo?.realWorldExample || '').length).toBeGreaterThan(80);
+          });
+
+          it('has concrete step-by-step visual trace walkthrough with pointer/state transitions', () => {
+            expect(algo?.concreteWalkthrough).toBeDefined();
+            expect(algo?.concreteWalkthrough?.inputExample).toBeTruthy();
+            expect(algo?.concreteWalkthrough?.initialState).toBeTruthy();
+            expect(algo?.concreteWalkthrough?.finalState).toBeTruthy();
+            expect((algo?.concreteWalkthrough?.steps || []).length).toBeGreaterThanOrEqual(4);
+
+            for (const step of algo?.concreteWalkthrough?.steps || []) {
+              expect(step.step).toBeGreaterThan(0);
+              expect(step.action).toBeTruthy();
+              expect(step.state).toBeTruthy();
+              expect(step.explanation.length).toBeGreaterThan(15);
+            }
+          });
+
+          it('has strict Big-O complexity with best, average, worst, space, and derivation reasoning', () => {
+            expect(algo?.complexity.best).toBeTruthy();
+            expect(algo?.complexity.average).toBeTruthy();
+            expect(algo?.complexity.worst).toBeTruthy();
+            expect(algo?.complexity.space).toBeTruthy();
+            expect(algo?.complexity.breakdownExplanation).toBeTruthy();
+            expect((algo?.complexity.breakdownExplanation || '').length).toBeGreaterThan(150);
+          });
+
+          it('has explicit edge cases detailing empty, single-element, duplicate, and missing targets', () => {
+            expect(algo?.edgeCases).toBeDefined();
+            expect((algo?.edgeCases || []).length).toBeGreaterThanOrEqual(4);
+            const edgeText = (algo?.edgeCases || []).join(' ').toLowerCase();
+            expect(edgeText).toContain('empty');
+            expect(edgeText).toMatch(/(missing|not found|not present)/);
+            expect(edgeText).toMatch(/(duplicate|duplicates)/);
+            expect(edgeText).toMatch(/(single|size 1|one element)/);
+          });
+
+          it('has executable, heavily commented Python code ready for ChronoNode visualizer', () => {
+            expect(algo?.pythonCode).toBeDefined();
+            const code = algo?.pythonCode || '';
+            expect(code.length).toBeGreaterThan(300);
+            expect(code).toContain('def ');
+            expect(code).toContain('#');
+            expect(code).toContain('arr');
+          });
+        });
+      }
     });
   });
 });

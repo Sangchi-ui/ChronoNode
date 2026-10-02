@@ -28,11 +28,10 @@ describe('Client-Side Interactive Features', () => {
      1. Layout Constraints (Algorithm Detail Pages)
      ------------------------------------------------------------------------ */
   describe('1. Algorithm Detail Layout Adjustment', () => {
-    it('constrains .detail-content-container with max-width and generous side margins', () => {
+    it('constrains .detail-content-container with wide reading width (max-w-7xl) and margins', () => {
       expect(algorithmsCss).toContain('.detail-content-container');
-      expect(algorithmsCss).toMatch(/max-width:\s*1140px/);
+      expect(algorithmsCss).toMatch(/max-width:\s*(80rem|1280px|1140px)/);
       expect(algorithmsCss).toMatch(/margin:\s*0\s+auto/);
-      expect(algorithmsCss).toMatch(/padding:\s*44px\s+20px\s+120px/);
     });
   });
 

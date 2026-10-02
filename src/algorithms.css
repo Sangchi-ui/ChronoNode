@@ -435,15 +435,15 @@
   border-color: #3f526e;
 }
 
-/* Content Container - Natural Window Scroll */
+/* Content Container - Natural Window Scroll (max-w-7xl) */
 .detail-content-container {
-  max-width: 1140px;
-  width: 92%;
+  max-width: 80rem;
+  width: 100%;
   margin: 0 auto;
-  padding: 44px 20px 120px;
+  padding: 44px 32px 64px;
   display: flex;
   flex-direction: column;
-  gap: 40px;
+  gap: 48px;
   box-sizing: border-box;
 }
 
@@ -926,23 +926,37 @@
 }
 
 /* ==========================================================================
-   Integrated Side-by-Side Visualizer Section
+   Edge-to-Edge Execution Environment & Strict 50/50 Split Visualizer
    ========================================================================== */
 
-.visualizer-showcase-section {
-  background: #0c1119;
-  border: 1px solid #243247;
-  padding: 28px 32px;
+.execution-environment-section {
+  width: 100%;
+  max-width: 100vw;
+  background: #090e17;
+  border-top: 1px solid #1e2a3c;
+  padding: 48px 0 64px 0;
+  box-sizing: border-box;
+}
+
+.embedded-visualizer-outer {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 .embedded-visualizer-container {
   background: #0d121a;
-  border: 1px solid #253347;
-  border-radius: 12px;
+  border-top: 1px solid #222f42;
+  border-bottom: 1px solid #222f42;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5);
+  width: 100%;
 }
 
 .embedded-visualizer-header {
@@ -952,7 +966,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 24px;
 }
 
 .embedded-title-group {
@@ -1026,15 +1040,16 @@
   color: #f1f5f9;
 }
 
-/* Split Workspace: Left Code Editor / Right Visualizer */
+/* Strict 50/50 Split-Pane Workspace: Left Code Editor / Right Visualizer */
 .embedded-split-workspace {
   display: grid;
-  grid-template-columns: 44% 56%;
-  min-height: 580px;
-  height: 600px;
+  grid-template-columns: 1fr 1fr;
+  min-height: 640px;
+  height: 680px;
+  width: 100%;
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1024px) {
   .embedded-split-workspace {
     grid-template-columns: 1fr;
     height: auto;
@@ -1046,6 +1061,8 @@
   display: flex;
   flex-direction: column;
   background: #111722;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .embedded-pane-header {
@@ -1078,6 +1095,8 @@
   flex-direction: column;
   background: #0e131b;
   overflow: hidden;
+  min-width: 0;
+  width: 100%;
 }
 
 .embedded-visual-controls {
@@ -1209,4 +1228,30 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* Adaptive 1D Array Pointer Tracking */
+.array-cell {
+  position: relative;
+}
+
+.cell-pointer-badge {
+  position: absolute;
+  top: -11px;
+  background: #102338;
+  border: 1px solid #38bdf8;
+  color: #7dd3fc;
+  font: 700 9px 'DM Mono', monospace;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  z-index: 5;
+  text-transform: uppercase;
+}
+
+.array-cell.has-pointer {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1.5px rgba(56, 189, 248, 0.45);
 }

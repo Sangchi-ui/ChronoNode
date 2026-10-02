@@ -33,24 +33,66 @@ export function EmbeddedVisualizer({ initialCode, title }: EmbeddedVisualizerPro
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [animate, setAnimate] = useState(true);
-  const [showStates, setShowStates] = useState(false);
 
   const codeEditor = useRef<any>(null);
   const decorations = useRef<string[]>([]);
 
-  // Update code when initialCode changes (e.g. switching algorithms)
+  // Execute trace and optionally start playing immediately
+  const runTrace = async (autoPlay: boolean = false): Promise<TraceEvent[]> => {
+    setRunning(false);
+    setLoading(true);
+    setError('');
+    try {
+      const result = await tracePython(code);
+      setEvents(result);
+      setIndex(0);
+      if (autoPlay && result.length > 1) {
+        setRunning(true);
+      }
+      return result;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Preload and trace whenever initialCode updates (e.g. switching algorithms)
   useEffect(() => {
     setCode(initialCode);
     setEvents([]);
     setIndex(0);
     setRunning(false);
     setError('');
+
+    let isMounted = true;
+    setLoading(true);
+    tracePython(initialCode)
+      .then((res) => {
+        if (isMounted) {
+          setEvents(res);
+          setIndex(0);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [initialCode]);
 
   const event = events[index];
   const variables = event?.variables || {};
 
-  // Playback timer
+  // Playback timer driven by state transitions
   useEffect(() => {
     if (!running || events.length < 1) return;
     const timer = window.setTimeout(() => {
@@ -90,31 +132,16 @@ export function EmbeddedVisualizer({ initialCode, title }: EmbeddedVisualizerPro
     editor.revealLineInCenterIfOutsideViewport(event.line);
   }, [event?.line]);
 
-  const runTrace = async () => {
-    setRunning(false);
-    setLoading(true);
-    setError('');
-    try {
-      const result = await tracePython(code);
-      setEvents(result);
-      setIndex(0);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setLoading(false);
+  const handlePlayToggle = async () => {
+    if (events.length > 0) {
+      setRunning((prev) => !prev);
+    } else {
+      await runTrace(true);
     }
   };
 
   const progress =
     events.length > 1 ? (index / (events.length - 1)) * 100 : events.length ? 100 : 0;
-  const beforeText = useMemo(
-    () => (event ? JSON.stringify(event.beforeState, null, 2) : ''),
-    [event]
-  );
-  const afterText = useMemo(
-    () => (event ? JSON.stringify(event.afterState, null, 2) : ''),
-    [event]
-  );
 
   const matchMessage = useMemo(() => {
     if (!event) return null;
@@ -124,6 +151,8 @@ export function EmbeddedVisualizer({ initialCode, title }: EmbeddedVisualizerPro
         ? (event.variables.found_at as number)
         : typeof event.variables?.found === 'number'
         ? (event.variables.found as number)
+        : typeof event.variables?.result === 'number' && event.variables.result >= 0
+        ? (event.variables.result as number)
         : undefined;
     const comparing = event.eventType === 'compare' || event.operation === 'compare';
     const isBranchTaken = event.focus?.result === 'taken';
@@ -153,7 +182,8 @@ export function EmbeddedVisualizer({ initialCode, title }: EmbeddedVisualizerPro
   }, [event]);
 
   return (
-    <div className="embedded-visualizer-container">
+    <div className="embedded-visualizer-container w-full">
+      {/* Visualizer Top Bar */}
       <div className="embedded-visualizer-header">
         <div className="embedded-title-group">
           <span className="embedded-badge">LIVE PLAYGROUND</span>
@@ -163,7 +193,7 @@ export function EmbeddedVisualizer({ initialCode, title }: EmbeddedVisualizerPro
           <button
             className="embedded-run-btn"
             disabled={loading}
-            onClick={() => (events.length ? setRunning((val) => !val) : runTrace())}
+            onClick={handlePlayToggle}
           >
             {loading ? (
               <span className="spinner" />
@@ -181,6 +211,7 @@ export function EmbeddedVisualizer({ initialCode, title }: EmbeddedVisualizerPro
               setEvents([]);
               setIndex(0);
               setRunning(false);
+              runTrace(false);
             }}
             title="Reset code to original"
           >
@@ -189,8 +220,9 @@ export function EmbeddedVisualizer({ initialCode, title }: EmbeddedVisualizerPro
         </div>
       </div>
 
+      {/* Strict 50/50 Split-Pane Workspace */}
       <div className="embedded-split-workspace">
-        {/* LEFT SIDE: Code Editor */}
+        {/* LEFT SIDE (50%): Active Python Code Block */}
         <div className="embedded-code-pane">
           <div className="embedded-pane-header">
             <span className="file-name">algorithm.py</span>
@@ -224,13 +256,13 @@ export function EmbeddedVisualizer({ initialCode, title }: EmbeddedVisualizerPro
           </div>
         </div>
 
-        {/* RIGHT SIDE: Visualizer & Playback */}
+        {/* RIGHT SIDE (50%): Expanded ChronoNode Visualizer Canvas */}
         <div className="embedded-visual-pane">
           <div className="embedded-visual-controls">
             <div className="embedded-step-readout">
-              <span className="structure-tag">{event?.structure || 'Ready to trace'}</span>
+              <span className="structure-tag">{event?.structure || 'Ready'}</span>
               <span className="step-counter">
-                {events.length ? `Step ${index + 1} / ${events.length}` : 'Click "Run Code" to trace'}
+                {events.length ? `Step ${index + 1} / ${events.length}` : 'Click Play to trace'}
               </span>
             </div>
             <div className="embedded-playback-bar">
@@ -256,8 +288,8 @@ export function EmbeddedVisualizer({ initialCode, title }: EmbeddedVisualizerPro
               </button>
               <button
                 className="play-step-btn"
-                disabled={!events.length}
-                onClick={() => setRunning((r) => !r)}
+                onClick={handlePlayToggle}
+                title={running ? 'Pause' : 'Play'}
               >
                 {running ? <Pause size={14} /> : <Play size={14} />}
               </button>

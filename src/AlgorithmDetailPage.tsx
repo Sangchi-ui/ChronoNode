@@ -3,15 +3,11 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
-  Code2,
   Cpu,
   ExternalLink,
   Layers,
   Lightbulb,
-  ListOrdered,
   Play,
-  Share2,
-  Sparkles,
 } from 'lucide-react';
 import type { AlgorithmData } from './data/algorithms';
 import { getEnrichedAlgorithm, type EnrichedAlgorithmData } from './data/algorithms/enrichment';
@@ -31,22 +27,11 @@ export function AlgorithmDetailPage({
   const [enriched, setEnriched] = useState<EnrichedAlgorithmData>(() =>
     getEnrichedAlgorithm(algorithm)
   );
-  const [copiedCode, setCopiedCode] = useState(false);
 
   useEffect(() => {
     setEnriched(getEnrichedAlgorithm(algorithm));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [algorithm]);
-
-  const handleCopyCode = async () => {
-    try {
-      await navigator.clipboard.writeText(enriched.pythonCode);
-      setCopiedCode(true);
-      setTimeout(() => setCopiedCode(false), 2000);
-    } catch {
-      // fallback
-    }
-  };
 
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
@@ -56,9 +41,9 @@ export function AlgorithmDetailPage({
   };
 
   return (
-    <div className="algo-detail-page">
+    <div className="algo-detail-page w-full min-h-screen">
       {/* Top Sticky Navigation Bar */}
-      <nav className="detail-top-nav">
+      <nav className="detail-top-nav w-full">
         <div className="detail-nav-left">
           <button className="back-btn" onClick={onBack} aria-label="Back to Algorithms list">
             <ArrowLeft size={16} />
@@ -97,8 +82,8 @@ export function AlgorithmDetailPage({
         </div>
       </nav>
 
-      {/* Main Educational Article Content */}
-      <div className="detail-content-container">
+      {/* Main Educational Article Content - Comfortable Reading Width (max-w-7xl mx-auto px-8) */}
+      <div className="detail-content-container max-w-7xl mx-auto px-8 w-full">
         {/* Hero Header */}
         <header className="detail-hero">
           <div className="hero-category-badge">{enriched.category}</div>
@@ -139,7 +124,11 @@ export function AlgorithmDetailPage({
             <h2>In-Depth Explanation & Behavioral Mechanics</h2>
           </div>
           <div className="section-body tutorial-prose">
-            <p className="lead-paragraph">{enriched.inDepthExplanation}</p>
+            <div className="lead-paragraph markdown-content">
+              {enriched.inDepthExplanation.split('\n\n').map((para, i) => (
+                <p key={i}>{para}</p>
+              ))}
+            </div>
 
             <div className="analogy-callout">
               <div className="callout-header">
@@ -285,28 +274,28 @@ export function AlgorithmDetailPage({
             </div>
           </div>
         </section>
-
-        {/* Section 6: Integrated Bottom Visualizer (Side-by-Side Layout) */}
-        <section id="sec-visualizer" className="detail-section visualizer-showcase-section">
-          <div className="section-title-wrap">
-            <span className="section-number">06</span>
-            <div>
-              <h2>Interactive Execution & Visualizer</h2>
-              <p className="section-subtext">
-                Run, edit, and step through the algorithm in Python directly below. Watch the data
-                structures update in real-time on the right canvas.
-              </p>
-            </div>
-          </div>
-
-          <div className="embedded-visualizer-outer">
-            <EmbeddedVisualizer
-              initialCode={enriched.pythonCode}
-              title={`${enriched.name} Execution Trace`}
-            />
-          </div>
-        </section>
       </div>
+
+      {/* Section 6: Edge-to-Edge Bottom Execution Environment (Full Viewport Width 100%) */}
+      <section id="sec-visualizer" className="execution-environment-section w-full max-w-none">
+        <div className="section-title-wrap max-w-7xl mx-auto px-8 mb-6">
+          <span className="section-number">06</span>
+          <div>
+            <h2>Interactive Execution & Visualizer</h2>
+            <p className="section-subtext">
+              Run, edit, and step through {enriched.name} in Python directly below. Watch the data
+              structures update in real-time on the right canvas.
+            </p>
+          </div>
+        </div>
+
+        <div className="embedded-visualizer-outer w-full max-w-none">
+          <EmbeddedVisualizer
+            initialCode={enriched.pythonCode}
+            title={`${enriched.name} Execution Trace`}
+          />
+        </div>
+      </section>
     </div>
   );
 }

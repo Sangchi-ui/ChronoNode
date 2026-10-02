@@ -79,11 +79,37 @@ export function ArrayView({ event, value, name, animate }: { event: TraceEvent; 
   } else if (event.operation === 'move' && first !== undefined && second !== undefined) {
     motion.set(first, (second - first) * 63);
   }
+
+  // Adaptive Pointer Tracking for 1D Array visualization (left, right, mid, i, prev, step, etc.)
+  const pointerNames = ['left', 'right', 'mid', 'mid1', 'mid2', 'i', 'j', 'prev', 'step', 'probe', 'idx', 'low', 'high', 'ptr'];
+  const activePointersByIndex = new Map<number, string[]>();
+  for (const [vName, vVal] of Object.entries(event.variables || {})) {
+    if (typeof vVal === 'number' && pointerNames.includes(vName.toLowerCase())) {
+      const existing = activePointersByIndex.get(vVal) || [];
+      if (!existing.includes(vName)) existing.push(vName);
+      activePointersByIndex.set(vVal, existing);
+    }
+  }
+
   return <div className="array-view">
     <div className="array-label">{name}</div>
-    {value.slice(0, 80).map((item, index) => <div className={`array-cell ${range && (index < range[0] || index > range[1]) ? 'is-eliminated' : ''} ${compared.has(index) ? 'is-focused' : ''} ${event.operation === 'swap' && compared.has(index) ? 'is-moved' : ''} ${event.operation === 'compare' && compared.has(index) ? 'is-compared' : ''} ${animate && motion.has(index) ? 'is-moving' : ''} ${animate && changed.has(index) && !motion.has(index) ? 'is-changed' : ''}`} style={animate && motion.has(index) ? { '--move-from': `${motion.get(index)}px` } as React.CSSProperties : undefined} key={index}>
-      <small>{index}</small><b>{String(item)}</b>
-    </div>)}
+    {value.slice(0, 80).map((item, index) => {
+      const ptrs = activePointersByIndex.get(index);
+      return (
+        <div
+          className={`array-cell ${ptrs?.length ? 'has-pointer' : ''} ${range && (index < range[0] || index > range[1]) ? 'is-eliminated' : ''} ${compared.has(index) ? 'is-focused' : ''} ${event.operation === 'swap' && compared.has(index) ? 'is-moved' : ''} ${event.operation === 'compare' && compared.has(index) ? 'is-compared' : ''} ${animate && motion.has(index) ? 'is-moving' : ''} ${animate && changed.has(index) && !motion.has(index) ? 'is-changed' : ''}`}
+          style={animate && motion.has(index) ? { '--move-from': `${motion.get(index)}px` } as React.CSSProperties : undefined}
+          key={index}
+        >
+          {ptrs && ptrs.length > 0 && (
+            <span className="cell-pointer-badge" title={`Pointer: ${ptrs.join(', ')}`}>
+              {ptrs.join(',')}
+            </span>
+          )}
+          <small>{index}</small><b>{String(item)}</b>
+        </div>
+      );
+    })}
     {value.length > 80 && <span className="muted">Showing 80 of {value.length}</span>}
     {!!event.focus.values?.length && <div className="focus-readout">Focus: {event.focus.values.map(pretty).join('  ·  ')}</div>}
   </div>;
