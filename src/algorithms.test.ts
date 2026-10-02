@@ -290,11 +290,12 @@ describe('Algorithms Registry', () => {
         expect(algorithmsCss).toMatch(/\.detail-content-container\s*\{[^}]*width:\s*100%;/);
       });
 
-      it('breaks bottom execution environment out of container to span 100% edge-to-edge', () => {
+      it('breaks bottom execution environment out of container to span 100% edge-to-edge with no extra bottom space', () => {
         expect(detailPageTsx).toContain('className="execution-environment-section w-full max-w-none"');
         expect(detailPageTsx).toContain('className="embedded-visualizer-outer w-full max-w-none"');
         expect(algorithmsCss).toMatch(/\.execution-environment-section\s*\{[^}]*width:\s*100%;/);
         expect(algorithmsCss).toMatch(/\.execution-environment-section\s*\{[^}]*max-width:\s*100vw;/);
+        expect(algorithmsCss).toMatch(/\.execution-environment-section\s*\{[^}]*padding:\s*48px\s+0\s+0\s+0;/);
         expect(algorithmsCss).toMatch(/\.embedded-visualizer-container\s*\{[^}]*border-radius:\s*0;/);
       });
 
