@@ -7,159 +7,167 @@
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   1. COMPLEXITY ODOMETER HUD & METRICS DASHBOARD
+   1. COMPLEXITY ODOMETER HUD - FLOATING GLASSMORPHIC OVERLAY CARD
    -------------------------------------------------------------------------- */
-.complexity-odometer-hud {
-  background: #0f1622;
-  border: 1px solid #1e2c3d;
-  border-radius: 10px;
-  padding: 10px 14px;
-  margin: 10px 0;
+.visual-canvas-container {
+  flex: 1;
+  min-height: 260px;
+  margin: 16px 18px 8px;
+  position: relative;
+  overflow: hidden;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
-.telemetry-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+.visual-canvas-container > .canvas {
+  margin: 0;
+  width: 100%;
+  height: 100%;
   flex: 1;
 }
 
-.telemetry-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #141d2b;
-  border: 1px solid #223246;
-  border-radius: 8px;
-  padding: 6px 12px;
-  min-width: 110px;
-  transition: all 0.2s ease;
-}
+.complexity-odometer-hud {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 20;
+  pointer-events: auto;
+  user-select: none;
 
-.telemetry-card:hover {
-  border-color: #354b66;
-  background: #182333;
-}
+  width: 220px;
+  max-width: 240px;
+  padding: 10px 12px;
+  box-sizing: border-box;
 
-.telemetry-icon-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: #1b2637;
-  color: #94a3b8;
-}
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 
-.comparisons-card .telemetry-icon-box {
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.12);
-}
-
-.swaps-card .telemetry-icon-box {
-  color: #c084fc;
-  background: rgba(192, 132, 252, 0.12);
-}
-
-.writes-card .telemetry-icon-box {
-  color: #fb923c;
-  background: rgba(251, 146, 60, 0.12);
-}
-
-.memory-card .telemetry-icon-box {
-  color: #c4f34a;
-  background: rgba(196, 243, 74, 0.12);
-}
-
-.telemetry-metric {
   display: flex;
   flex-direction: column;
+  gap: 7px;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.telemetry-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.complexity-odometer-hud:hover {
+  background: rgba(15, 23, 42, 0.86);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
 }
 
-.telemetry-value {
-  font-family: 'DM Mono', 'Fira Code', monospace;
-  font-size: 15px;
-  font-weight: 700;
-  color: #f8fafc;
-  line-height: 1.2;
-}
-
-.telemetry-sub {
-  font-size: 10px;
-  font-weight: 500;
-  color: #94a3b8;
-  margin-left: 2px;
-}
-
-/* Sparkline HUD Card */
-.sparkline-card {
-  display: flex;
-  flex-direction: column;
-  background: #141d2b;
-  border: 1px solid #223246;
-  border-radius: 8px;
-  padding: 6px 12px;
-  min-width: 140px;
-}
-
-.sparkline-header {
+.odometer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.sparkline-live-tag {
+.odometer-title {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 9.5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.hud-pulse-icon {
+  color: #38bdf8;
+}
+
+.odometer-live-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
   font-weight: 700;
   color: #c4f34a;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .live-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #c4f34a;
-  box-shadow: 0 0 8px #c4f34a;
+  box-shadow: 0 0 6px #c4f34a;
   animation: pulse-live 1.5s infinite;
 }
 
 @keyframes pulse-live {
   0% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 0.35; transform: scale(0.75); }
   100% { opacity: 1; transform: scale(1); }
 }
 
-.sparkline-svg {
-  width: 120px;
-  height: 30px;
-  overflow: visible;
+.odometer-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.sparkline-path {
-  filter: drop-shadow(0 0 3px rgba(196, 243, 74, 0.4));
-  transition: all 0.2s ease;
+.odometer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.odometer-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #94a3b8;
+  font-weight: 500;
+  font-size: 10.5px;
+}
+
+.label-icon {
+  flex-shrink: 0;
+}
+
+.comparisons-icon { color: #38bdf8; }
+.swaps-icon { color: #c084fc; }
+.space-icon { color: #c4f34a; }
+.total-icon { color: #fbbf24; }
+
+.odometer-val {
+  font-family: 'DM Mono', monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.comparisons-glow { color: #38bdf8; }
+.swaps-glow { color: #c084fc; }
+.space-glow { color: #c4f34a; }
+.total-glow { color: #f8fafc; }
+
+.odometer-total-row {
+  padding-top: 3px;
+  margin-top: 2px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.06);
+}
+
+.odometer-sparkline-wrap {
+  width: 100%;
+  height: 18px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+  overflow: hidden;
+  padding: 1px 2px;
+  box-sizing: border-box;
+}
+
+.odometer-sparkline {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 /* --------------------------------------------------------------------------

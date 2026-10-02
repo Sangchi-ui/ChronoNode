@@ -301,6 +301,7 @@ export function EmbeddedVisualizer({ initialCode, title }: EmbeddedVisualizerPro
                 <Visual event={event} animate={animate} source={code} />
               </VisualErrorBoundary>
             </PanZoomCanvas>
+            <ComplexityOdometer events={events} currentIndex={index} />
             <div className="legend">
               <span>
                 <i className="legend-compare" /> Comparison
@@ -313,8 +314,6 @@ export function EmbeddedVisualizer({ initialCode, title }: EmbeddedVisualizerPro
               </span>
             </div>
           </div>
-
-          <ComplexityOdometer events={events} currentIndex={index} />
 
           {/* Scrubber timeline */}
           <div className="embedded-timeline">

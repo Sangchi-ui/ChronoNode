@@ -10,11 +10,17 @@ import {
 import type { TraceEvent } from './trace';
 
 let algorithmsCss = '';
+let interactiveFeaturesCss = '';
+let mainTsx = '';
+let embeddedTsx = '';
 
 beforeAll(async () => {
   // @ts-ignore
   const fs = await import('node:fs');
   algorithmsCss = fs.readFileSync(new URL('./algorithms.css', import.meta.url), 'utf-8');
+  interactiveFeaturesCss = fs.readFileSync(new URL('./interactive-features.css', import.meta.url), 'utf-8');
+  mainTsx = fs.readFileSync(new URL('./main.tsx', import.meta.url), 'utf-8');
+  embeddedTsx = fs.readFileSync(new URL('./EmbeddedVisualizer.tsx', import.meta.url), 'utf-8');
 });
 
 describe('Client-Side Interactive Features', () => {
@@ -310,6 +316,31 @@ describe('Client-Side Interactive Features', () => {
       expect(arraySwapsCount).toBe(1);
       expect(writesCount).toBe(1);
       expect(peakSpaceBytes).toBe(64 + 56 + 4 * 8); // 152 bytes for list of 4 items
+    });
+
+    it('positions the odometer as a compact, semi-transparent floating glassmorphic overlay card at bottom-right', () => {
+      // 1. Canvas-Relative Positioning & Dimensions
+      expect(interactiveFeaturesCss).toMatch(/\.complexity-odometer-hud\s*\{[^}]*position:\s*absolute/);
+      expect(interactiveFeaturesCss).toMatch(/\.complexity-odometer-hud\s*\{[^}]*bottom:\s*12px/);
+      expect(interactiveFeaturesCss).toMatch(/\.complexity-odometer-hud\s*\{[^}]*right:\s*12px/);
+      expect(interactiveFeaturesCss).toMatch(/\.complexity-odometer-hud\s*\{[^}]*z-index:\s*20/);
+      expect(interactiveFeaturesCss).toMatch(/\.complexity-odometer-hud\s*\{[^}]*pointer-events:\s*auto/);
+      expect(interactiveFeaturesCss).toMatch(/\.complexity-odometer-hud\s*\{[^}]*width:\s*220px/);
+      expect(interactiveFeaturesCss).toMatch(/\.complexity-odometer-hud\s*\{[^}]*max-width:\s*240px/);
+
+      // 2. Semi-Transparent Glassmorphism Styling
+      expect(interactiveFeaturesCss).toMatch(/\.complexity-odometer-hud\s*\{[^}]*background:\s*rgba\(15,\s*23,\s*42,\s*0\.72\)/);
+      expect(interactiveFeaturesCss).toMatch(/\.complexity-odometer-hud\s*\{[^}]*backdrop-filter:\s*blur\(8px\)/);
+      expect(interactiveFeaturesCss).toMatch(/\.complexity-odometer-hud\s*\{[^}]*border:\s*1px solid rgba\(255,\s*255,\s*255,\s*0\.08\)/);
+
+      // 3. Viewport Container Positioning
+      expect(interactiveFeaturesCss).toMatch(/\.visual-canvas-container\s*\{[^}]*position:\s*relative/);
+      expect(interactiveFeaturesCss).toMatch(/\.visual-canvas-container\s*\{[^}]*overflow:\s*hidden/);
+
+      // 4. Layout Integration in main.tsx and EmbeddedVisualizer.tsx
+      expect(mainTsx).toContain('<div className="visual-canvas-container">');
+      expect(mainTsx).toContain('<ComplexityOdometer events={events} currentIndex={index} />');
+      expect(embeddedTsx).toContain('<ComplexityOdometer events={events} currentIndex={index} />');
     });
   });
 });

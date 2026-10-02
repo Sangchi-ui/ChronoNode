@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Activity, Cpu, Database, Gauge, GitCompare, RefreshCw, Zap } from 'lucide-react';
+import { Database, Gauge, GitCompare, RefreshCw, Zap } from 'lucide-react';
 import type { TraceEvent } from './trace';
 
 interface ComplexityOdometerProps {
@@ -50,14 +50,13 @@ export function ComplexityOdometer({ events, currentIndex }: ComplexityOdometerP
       Object.entries(state).forEach(([k, v]) => {
         if (k.startsWith('__')) return;
         if (Array.isArray(v)) {
-          // List object overhead (56 bytes) + 8 bytes per pointer + element sizes
           currentBytes += 56 + v.length * 8;
         } else if (typeof v === 'number') {
-          currentBytes += 28; // Python int overhead
+          currentBytes += 28;
         } else if (typeof v === 'string') {
-          currentBytes += 49 + v.length; // Python str overhead
+          currentBytes += 49 + v.length;
         } else if (typeof v === 'object' && v !== null) {
-          currentBytes += 128; // Custom object / dict
+          currentBytes += 128;
         }
       });
 
@@ -66,7 +65,7 @@ export function ComplexityOdometer({ events, currentIndex }: ComplexityOdometerP
       }
 
       // Sample every few steps for responsive sparkline
-      if (idx % Math.max(1, Math.floor(events.length / 24)) === 0 || idx === activeEvents.length - 1) {
+      if (idx % Math.max(1, Math.floor(events.length / 20)) === 0 || idx === activeEvents.length - 1) {
         sparklineData.push(comparisonsCount + arraySwapsCount + writesCount);
       }
     });
@@ -83,12 +82,11 @@ export function ComplexityOdometer({ events, currentIndex }: ComplexityOdometerP
     };
   }, [events, currentIndex]);
 
-  const maxOps = Math.max(1, telemetry.totalOps);
   const sparklinePoints = useMemo(() => {
     if (!telemetry.sparklineData.length) return '';
     const data = telemetry.sparklineData;
-    const width = 120;
-    const height = 30;
+    const width = 196;
+    const height = 18;
     const maxVal = Math.max(...data, 1);
     return data
       .map((val, i) => {
@@ -103,107 +101,69 @@ export function ComplexityOdometer({ events, currentIndex }: ComplexityOdometerP
     <div className="complexity-odometer-hud" aria-label="Complexity Telemetry Odometer">
       <div className="odometer-header">
         <div className="odometer-title">
-          <Gauge size={13} className="hud-pulse-icon" />
-          <span>COMPLEXITY ODOMETER</span>
+          <Gauge size={12} className="hud-pulse-icon" />
+          <span>TELEMETRY</span>
         </div>
-        <span className="odometer-live-tag">LIVE TELEMETRY</span>
-      </div>
-
-      <div className="odometer-meters-grid">
-        {/* Comparison Counter */}
-        <div className="odometer-card">
-          <div className="odometer-meta">
-            <span className="odometer-label">
-              <GitCompare size={12} /> Comparisons
-            </span>
-            <span className="odometer-sub">`if / == / &lt;`</span>
-          </div>
-          <div className="odometer-digital-display">
-            <span className="odometer-number comparisons-glow">
-              {telemetry.comparisonsCount.toLocaleString()}
-            </span>
-          </div>
-          <div className="odometer-bar-track">
-            <div
-              className="odometer-bar comparisons-bar"
-              style={{ width: `${Math.min(100, (telemetry.comparisonsCount / maxOps) * 100)}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Array Swaps / Moves Counter */}
-        <div className="odometer-card">
-          <div className="odometer-meta">
-            <span className="odometer-label">
-              <RefreshCw size={12} /> Array Swaps
-            </span>
-            <span className="odometer-sub">`a[i], a[j] = a[j], a[i]`</span>
-          </div>
-          <div className="odometer-digital-display">
-            <span className="odometer-number swaps-glow">
-              {telemetry.arraySwapsCount.toLocaleString()}
-            </span>
-          </div>
-          <div className="odometer-bar-track">
-            <div
-              className="odometer-bar swaps-bar"
-              style={{ width: `${Math.min(100, (telemetry.arraySwapsCount / maxOps) * 100)}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Peak Memory / Auxiliary Space Counter */}
-        <div className="odometer-card">
-          <div className="odometer-meta">
-            <span className="odometer-label">
-              <Database size={12} /> Peak Space
-            </span>
-            <span className="odometer-sub">Heap + Frame Slots</span>
-          </div>
-          <div className="odometer-digital-display">
-            <span className="odometer-number space-glow">
-              {telemetry.peakSpaceBytes >= 1024
-                ? `${(telemetry.peakSpaceBytes / 1024).toFixed(1)} KB`
-                : `${telemetry.peakSpaceBytes} B`}
-            </span>
-          </div>
-          <div className="odometer-bar-track">
-            <div
-              className="odometer-bar space-bar"
-              style={{
-                width: `${Math.min(100, (telemetry.peakSpaceBytes / 2048) * 100)}%`,
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Total Cumulative Operations & Telemetry Graph */}
-        <div className="odometer-card odometer-chart-card">
-          <div className="odometer-meta">
-            <span className="odometer-label">
-              <Zap size={12} /> Total Operations
-            </span>
-            <span className="odometer-sub">Cumulative Rate</span>
-          </div>
-          <div className="odometer-chart-row">
-            <span className="odometer-number total-glow">
-              {telemetry.totalOps.toLocaleString()}
-            </span>
-            {telemetry.sparklineData.length > 1 && (
-              <svg className="odometer-sparkline" viewBox="0 0 120 30">
-                <polyline
-                  fill="none"
-                  stroke="#c4f34a"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  points={sparklinePoints}
-                />
-              </svg>
-            )}
-          </div>
+        <div className="odometer-live-tag">
+          <span className="live-dot" />
+          <span>LIVE</span>
         </div>
       </div>
+
+      <div className="odometer-rows">
+        <div className="odometer-row">
+          <span className="odometer-label">
+            <GitCompare size={11} className="label-icon comparisons-icon" /> Comparisons
+          </span>
+          <span className="odometer-val comparisons-glow">
+            {telemetry.comparisonsCount.toLocaleString()}
+          </span>
+        </div>
+
+        <div className="odometer-row">
+          <span className="odometer-label">
+            <RefreshCw size={11} className="label-icon swaps-icon" /> Swaps
+          </span>
+          <span className="odometer-val swaps-glow">
+            {telemetry.arraySwapsCount.toLocaleString()}
+          </span>
+        </div>
+
+        <div className="odometer-row">
+          <span className="odometer-label">
+            <Database size={11} className="label-icon space-icon" /> Peak Space
+          </span>
+          <span className="odometer-val space-glow">
+            {telemetry.peakSpaceBytes >= 1024
+              ? `${(telemetry.peakSpaceBytes / 1024).toFixed(1)} KB`
+              : `${telemetry.peakSpaceBytes} B`}
+          </span>
+        </div>
+
+        <div className="odometer-row odometer-total-row">
+          <span className="odometer-label">
+            <Zap size={11} className="label-icon total-icon" /> Operations
+          </span>
+          <span className="odometer-val total-glow">
+            {telemetry.totalOps.toLocaleString()}
+          </span>
+        </div>
+      </div>
+
+      {telemetry.sparklineData.length > 1 && (
+        <div className="odometer-sparkline-wrap" title={`Operation Velocity (${telemetry.totalOps} ops total)`}>
+          <svg className="odometer-sparkline" viewBox="0 0 196 18">
+            <polyline
+              fill="none"
+              stroke="#c4f34a"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              points={sparklinePoints}
+            />
+          </svg>
+        </div>
+      )}
     </div>
   );
 }
