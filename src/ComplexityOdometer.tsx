@@ -98,7 +98,7 @@ export function ComplexityOdometer({ events, currentIndex }: ComplexityOdometerP
   }, [telemetry.sparklineData]);
 
   return (
-    <div className="complexity-odometer-hud" aria-label="Complexity Telemetry Odometer">
+    <div className="complexity-odometer-hud absolute bottom-3 right-3 z-20" aria-label="Complexity Telemetry Odometer">
       <div className="odometer-header">
         <div className="odometer-title">
           <Gauge size={12} className="hud-pulse-icon" />

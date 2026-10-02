@@ -1100,12 +1100,19 @@
    Edge-to-Edge Execution Environment & Strict 50/50 Split Visualizer
    ========================================================================== */
 
-.execution-environment-section {
+html, body, #root {
+  margin: 0;
+  padding: 0;
   width: 100%;
-  max-width: 100vw;
+  min-height: 100vh;
+}
+
+.execution-environment-section,
+.execution-section {
+  width: 100%;
   background: #090e17;
-  border-top: 1px solid #1e2a3c;
-  padding: 48px 0 0 0;
+  border-top: 1px solid #1e293b;
+  padding: 0;
   margin: 0;
   box-sizing: border-box;
 }
@@ -1150,7 +1157,7 @@
   background: #141a24;
   border-bottom: 1px solid #252c38;
   display: grid;
-  grid-template-columns: minmax(460px, 4fr) 6fr;
+  grid-template-columns: 1fr 1fr;
   padding: 0;
   width: 100%;
 }
@@ -1192,30 +1199,23 @@
   color: #f1f5f9;
 }
 
-/* Balanced 40/60 Split-Pane Workspace: Left Code Editor / Right Visualizer Canvas */
-.embedded-split-workspace {
-  display: grid;
-  grid-template-columns: minmax(460px, 4fr) 6fr;
-  min-height: 580px;
-  height: 640px;
-  width: 100%;
-  border-bottom: 1px solid #252c38;
-}
-
+/* Strict 50/50 Split on lg+, Stacked below lg */
+.embedded-split-workspace,
 .embedded-panes {
   display: grid;
-  grid-template-columns: minmax(460px, 4fr) 6fr;
-  min-height: 580px;
-  height: 640px;
+  grid-template-columns: 1fr 1fr;
+  min-height: 80vh;
+  height: calc(100vh - 4rem);
   width: 100%;
   border-bottom: 1px solid #252c38;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1023px) {
   .embedded-split-workspace,
   .embedded-panes {
     grid-template-columns: 1fr;
     height: auto;
+    min-height: 80vh;
   }
 
   .embedded-workspace .toolbar {
@@ -1251,12 +1251,13 @@
 .embedded-panes .editor-pane,
 .embedded-workspace .editor-pane {
   width: 100%;
-  min-width: 460px;
+  min-width: 0;
   border-right: 1px solid #202b3c;
   display: flex;
   flex-direction: column;
   background: #111722;
-  overflow: hidden;
+  overflow: auto;
+  height: 100%;
 }
 
 .embedded-visual-pane,
@@ -1265,9 +1266,10 @@
   display: flex;
   flex-direction: column;
   background: #0e131b;
-  overflow: hidden;
+  overflow: auto;
   min-width: 0;
   width: 100%;
+  height: 100%;
 }
 
 /* Centered Node Legend directly below Canvas matching main Editor */

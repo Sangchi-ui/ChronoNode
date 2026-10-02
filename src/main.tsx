@@ -6,7 +6,7 @@ import { tracePython, type TraceEvent } from './trace';
 import { resolveVisualizerRoute, type VisualizerRoute } from './visualizer-routing';
 import { PanZoomCanvas } from './PanZoomCanvas';
 import { AlgorithmsPanel } from './AlgorithmsPanel';
-import { AlgorithmDetailPage } from './AlgorithmDetailPage';
+import { AlgorithmPageLayout } from './AlgorithmPageLayout';
 import { SandboxMode } from './SandboxMode';
 import { EdgeCaseModal } from './EdgeCaseModal';
 import { ComplexityOdometer } from './ComplexityOdometer';
@@ -678,11 +678,12 @@ function App() {
   const event = events[index];
   const variables = event?.variables || {};
 
-  // Deep linking and browser history / hash sync
+  // Deep linking and browser history / hash sync for /algorithms/:slug
   useEffect(() => {
-    const handleHash = () => {
+    const handleRoute = () => {
       const hash = window.location.hash;
-      const match = hash.match(/#\/?algorithms\/([a-z0-9-]+)/i);
+      const pathname = window.location.pathname;
+      const match = hash.match(/#\/?algorithms\/([a-z0-9-]+)/i) || pathname.match(/\/algorithms\/([a-z0-9-]+)/i);
       if (match) {
         const found = allAlgorithms.find((a) => a.id === match[1]);
         if (found) {
@@ -693,12 +694,12 @@ function App() {
         setSelectedAlgorithm(null);
       }
     };
-    handleHash();
-    window.addEventListener('hashchange', handleHash);
-    window.addEventListener('popstate', handleHash);
+    handleRoute();
+    window.addEventListener('hashchange', handleRoute);
+    window.addEventListener('popstate', handleRoute);
     return () => {
-      window.removeEventListener('hashchange', handleHash);
-      window.removeEventListener('popstate', handleHash);
+      window.removeEventListener('hashchange', handleRoute);
+      window.removeEventListener('popstate', handleRoute);
     };
   }, []);
 
@@ -776,6 +777,31 @@ function App() {
     return null;
   }, [event]);
 
+  // Single Source of Truth: Algorithm detail route renders <AlgorithmPageLayout />
+  // directly without outer wrappers or horizontal padding
+  if (selectedAlgorithm) {
+    return (
+      <AlgorithmPageLayout
+        algorithm={selectedAlgorithm}
+        onBack={() => {
+          setSelectedAlgorithm(null);
+          if (window.location.hash.includes('algorithms/')) {
+            window.location.hash = '';
+          }
+        }}
+        onLoadIntoWorkspace={(newCode) => {
+          setCode(newCode);
+          setEvents([]);
+          setIndex(0);
+          setRunning(false);
+          setSelectedAlgorithm(null);
+          setTab('editor');
+          window.location.hash = '';
+        }}
+      />
+    );
+  }
+
   return <div className="app">
     <header>
       <div className="brand">
@@ -828,27 +854,7 @@ function App() {
       </div>
     </header>
 
-    {selectedAlgorithm ? (
-      <AlgorithmDetailPage
-        algorithm={selectedAlgorithm}
-        onBack={() => {
-          setSelectedAlgorithm(null);
-          if (window.location.hash.includes('algorithms/')) {
-            window.location.hash = '';
-          }
-        }}
-        onLoadIntoWorkspace={(newCode) => {
-          setCode(newCode);
-          setEvents([]);
-          setIndex(0);
-          setRunning(false);
-          setSelectedAlgorithm(null);
-          setTab('editor');
-          window.location.hash = '';
-        }}
-      />
-    ) : (
-      <main>
+    <main>
         <aside className="sidebar">
           <div className="side-title">WORKSPACE</div>
           <button className={`nav ${tab === 'editor' ? 'active' : ''}`} onClick={() => setTab('editor')}><Code2/> Editor</button>
@@ -944,7 +950,6 @@ function App() {
           }}
         />
       </main>
-    )}
   </div>;
 }
 
