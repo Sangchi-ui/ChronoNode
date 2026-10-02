@@ -1,15 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Editor from '@monaco-editor/react';
-import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, Code2, GitBranch, Layers, Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
+import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, Code2, GitBranch, Layers, Pause, Play, RotateCcw, SkipBack, SkipForward, Sliders, Sparkles } from 'lucide-react';
 import { tracePython, type TraceEvent } from './trace';
 import { resolveVisualizerRoute, type VisualizerRoute } from './visualizer-routing';
 import { PanZoomCanvas } from './PanZoomCanvas';
 import { AlgorithmsPanel } from './AlgorithmsPanel';
 import { AlgorithmDetailPage } from './AlgorithmDetailPage';
+import { SandboxMode } from './SandboxMode';
+import { LiveVariableTweaker } from './LiveVariableTweaker';
+import { EdgeCaseModal } from './EdgeCaseModal';
+import { ComplexityOdometer } from './ComplexityOdometer';
 import { allAlgorithms, type AlgorithmData } from './data/algorithms';
 import './styles.css';
 import './algorithms.css';
+import './interactive-features.css';
 import './deque.css';
 import './graph.css';
 import './matrix.css';
@@ -630,8 +635,9 @@ function Visual({ event, animate, source }: { event?: TraceEvent; animate: boole
 }
 
 function App() {
-  const [tab, setTab] = useState<'editor' | 'algorithms' | 'data-structures'>('editor');
+  const [tab, setTab] = useState<'editor' | 'algorithms' | 'sandbox' | 'tweaker'>('editor');
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<AlgorithmData | null>(null);
+  const [showEdgeModal, setShowEdgeModal] = useState(false);
   const [code, setCode] = useState(initial);
   const [events, setEvents] = useState<TraceEvent[]>([]);
   const [index, setIndex] = useState(0);
@@ -781,6 +787,32 @@ function App() {
         >
           <Code2 size={16}/> Playground
         </button>
+        <button
+          className={`ghost ${tab === 'sandbox' && !selectedAlgorithm ? 'active-header-btn' : ''}`}
+          onClick={() => {
+            setSelectedAlgorithm(null);
+            setTab('sandbox');
+            if (window.location.hash.includes('algorithms/')) {
+              window.location.hash = '';
+            }
+          }}
+          aria-label="Interactive Sandbox visual builder"
+        >
+          <Layers size={16}/> Sandbox
+        </button>
+        <button
+          className={`ghost ${tab === 'tweaker' && !selectedAlgorithm ? 'active-header-btn' : ''}`}
+          onClick={() => {
+            setSelectedAlgorithm(null);
+            setTab('tweaker');
+            if (window.location.hash.includes('algorithms/')) {
+              window.location.hash = '';
+            }
+          }}
+          aria-label="Live variable tweaker state machine"
+        >
+          <Sliders size={16}/> Live Tweaker
+        </button>
       </div>
     </header>
 
@@ -809,7 +841,8 @@ function App() {
           <div className="side-title">WORKSPACE</div>
           <button className={`nav ${tab === 'editor' ? 'active' : ''}`} onClick={() => setTab('editor')}><Code2/> Editor</button>
           <button className={`nav ${tab === 'algorithms' ? 'active' : ''}`} onClick={() => setTab('algorithms')}><GitBranch/> Algorithms</button>
-          <button className={`nav ${tab === 'data-structures' ? 'active' : ''}`} onClick={() => setTab('data-structures')}><Layers/> Data structures</button>
+          <button className={`nav ${tab === 'sandbox' ? 'active' : ''}`} onClick={() => setTab('sandbox')}><Layers/> Sandbox Mode</button>
+          <button className={`nav ${tab === 'tweaker' ? 'active' : ''}`} onClick={() => setTab('tweaker')}><Sliders/> Live Tweaker</button>
           <div className="side-title samples">SAMPLES</div>
           {Object.keys(samples).map(name => (
             <button
@@ -827,7 +860,7 @@ function App() {
             </button>
           ))}
         </aside>
-        {tab === 'algorithms' || tab === 'data-structures' ? (
+        {tab === 'algorithms' ? (
           <AlgorithmsPanel
             onSelectAlgorithm={(algo) => {
               setSelectedAlgorithm(algo);
@@ -841,15 +874,39 @@ function App() {
               setTab('editor');
             }}
           />
+        ) : tab === 'sandbox' ? (
+          <SandboxMode
+            onLoadIntoWorkspace={(newCode) => {
+              setCode(newCode);
+              setSample('Custom Sandbox');
+              setEvents([]);
+              setIndex(0);
+              setRunning(false);
+              setTab('editor');
+            }}
+          />
+        ) : tab === 'tweaker' ? (
+          <LiveVariableTweaker />
         ) : (
           <section className="workspace">
-            <div className="toolbar"><label className="sample-select-label" htmlFor="sample-select">Example</label><select id="sample-select" value={sample} onChange={e => { setSample(e.target.value); setCode(samples[e.target.value]); setEvents([]); setIndex(0); }}>{Object.keys(samples).map(name => <option key={name}>{name}</option>)}</select>
+            <div className="toolbar">
+              <label className="sample-select-label" htmlFor="sample-select">Example</label>
+              <select id="sample-select" value={sample} onChange={e => { setSample(e.target.value); setCode(samples[e.target.value]); setEvents([]); setIndex(0); }}>{Object.keys(samples).map(name => <option key={name}>{name}</option>)}</select>
+              <button
+                className="edge-cases-btn"
+                onClick={() => setShowEdgeModal(true)}
+                title="Load adversarial edge-case datasets"
+              >
+                <Sparkles size={14}/> Edge Cases
+              </button>
               <div className="run-controls"><button disabled={!events.length} onClick={() => { setRunning(false); setIndex(0); }} title="Restart replay" aria-label="Restart replay"><RotateCcw size={16}/></button><button disabled={!events.length || index === 0} onClick={() => { setRunning(false); setIndex(i => Math.max(0, i - 1)); }} title="Previous step" aria-label="Previous step"><ChevronLeft size={18}/></button><button className="run" disabled={loading} onClick={() => events.length ? setRunning(value => !value) : run()}>{loading ? <span className="spinner"/> : running ? <Pause size={15}/> : <Play size={15}/>} {loading ? 'Tracing…' : events.length ? running ? 'Pause' : 'Resume' : 'Run code'}</button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(i => Math.min(events.length - 1, i + 1)); }} title="Next step" aria-label="Next step"><ChevronRight size={18}/></button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(events.length - 1); }} title="Jump to last step" aria-label="Jump to last step"><SkipForward size={16}/></button></div>
               <label className="speed-control">Speed <input aria-label="Playback speed" type="range" min="80" max="1200" step="40" value={1200 - speed} onChange={e => setSpeed(1200 - Number(e.target.value))}/></label>
             </div>
             <div className="panes"><div className="editor-pane"><div className="pane-head"><span>main.py</span><span className="python">PYTHON</span></div><Editor height="100%" language="python" theme="vs-dark" value={code} onChange={value => { setCode(value || ''); setEvents([]); setIndex(0); setRunning(false); }} onMount={editor => { codeEditor.current = editor; }} options={{ minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, automaticLayout: true, glyphMargin: true, ariaLabel: 'Python source code editor' }}/></div>
               <div className="visual-pane"><div className="visual-head"><div><span className="eyebrow">EXECUTION VISUALIZATION</span><h2>{event?.structure || 'Ready to trace'}</h2></div><span className="step">{events.length ? `Step ${index + 1} / ${events.length}` : 'No trace yet'}</span></div>
-                <PanZoomCanvas><VisualErrorBoundary key={event?.step ?? 0}><Visual event={event} animate={animate} source={code}/></VisualErrorBoundary></PanZoomCanvas><div className="legend" aria-label="Visualization legend"><span><i className="legend-compare"/>Comparison</span><span><i className="legend-change"/>Changed value</span><span><i className="legend-pointer"/>Current pointer</span></div>
+                <PanZoomCanvas><VisualErrorBoundary key={event?.step ?? 0}><Visual event={event} animate={animate} source={code}/></VisualErrorBoundary></PanZoomCanvas>
+                <div className="legend" aria-label="Visualization legend"><span><i className="legend-compare"/>Comparison</span><span><i className="legend-change"/>Changed value</span><span><i className="legend-pointer"/>Current pointer</span></div>
+                <ComplexityOdometer events={events} currentIndex={index} />
                 <div className="timeline" aria-label="Execution timeline"><div className="progress" style={{ width: `${progress}%` }}/><input aria-label="Jump to execution step" className="timeline-range" type="range" min="0" max={Math.max(0, events.length - 1)} value={index} disabled={!events.length} onChange={e => { setRunning(false); setIndex(Number(e.target.value)); }}/><div className="timeline-labels"><span>{events.length ? `#${index + 1} · line ${event?.line || '—'}` : 'Run to create steps'}</span><span>{events.length ? `${events.length} events` : '← → keys step · Space plays'}</span></div></div>
                 <div className="explain"><span className="event-chip">{matchMessage ? 'MATCH' : (event?.eventType || 'READY')}</span><div className="event-description"><b>{matchMessage ? `✓ ${matchMessage} · ${event?.explanation || ''}` : (event?.explanation || 'Run your Python code to record its actual operations')}</b><small>{event?.statement || 'The source line and exact state will appear here.'}</small></div></div>
               </div>
@@ -864,6 +921,17 @@ function App() {
             {error && <div className="toast error"><AlertCircle size={18}/>{error}</div>}
           </section>
         )}
+        <EdgeCaseModal
+          isOpen={showEdgeModal}
+          onClose={() => setShowEdgeModal(false)}
+          onSelectDataset={(newCode, name) => {
+            setCode(newCode);
+            setSample(name);
+            setEvents([]);
+            setIndex(0);
+            setRunning(false);
+          }}
+        />
       </main>
     )}
   </div>;

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { tracePython, type TraceEvent } from './trace';
 import { PanZoomCanvas } from './PanZoomCanvas';
+import { ComplexityOdometer } from './ComplexityOdometer';
 import {
   AuxiliaryStructures,
   pretty,
@@ -312,6 +313,8 @@ export function EmbeddedVisualizer({ initialCode, title }: EmbeddedVisualizerPro
               </span>
             </div>
           </div>
+
+          <ComplexityOdometer events={events} currentIndex={index} />
 
           {/* Scrubber timeline */}
           <div className="embedded-timeline">
