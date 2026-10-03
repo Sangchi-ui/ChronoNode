@@ -371,7 +371,7 @@ function LinkedListView({ event, root }: { event: TraceEvent; root: Record<strin
   const chain: Array<Record<string, unknown>> = [];
   const seen = new Set<object>();
   let current: any = root;
-  while (current && typeof current === 'object' && ('__type__' in current || 'next' in current || 'val' in current || 'value' in current) && chain.length < 50 && !seen.has(current)) {
+  while (current && typeof current === 'object' && ('__type__' in current || 'next' in current || 'val' in current || 'value' in current) && chain.length < 100 && !seen.has(current)) {
     seen.add(current); chain.push(current); current = current.next;
   }
   const nodeValue = (node: Record<string, unknown>) => String(node.value ?? node.val ?? node.data ?? '?');
@@ -386,15 +386,21 @@ function LinkedListView({ event, root }: { event: TraceEvent; root: Record<strin
   };
   const locatePointer = (pointer: unknown) => {
     if (!pointer) return -1;
-    const pointerId = typeof pointer === 'object' ? (pointer as Record<string, unknown>).__id__ : undefined;
-    if (typeof pointerId === 'string') {
-      const idx = chain.findIndex(node => node.__id__ === pointerId);
-      if (idx >= 0) return idx;
-    }
-    const path = pointerValues(pointer);
-    if (path.length) {
-      const idx = chain.findIndex((_, index) => path.every((value, offset) => chain[index + offset] && nodeValue(chain[index + offset]) === value));
-      if (idx >= 0) return idx;
+    if (typeof pointer === 'object') {
+      const pointerId = (pointer as Record<string, unknown>).__id__;
+      if (typeof pointerId === 'string') {
+        return chain.findIndex(node => node.__id__ === pointerId);
+      }
+      const directIdx = chain.findIndex(node => node === pointer);
+      if (directIdx >= 0) return directIdx;
+
+      const path = pointerValues(pointer);
+      if (path.length >= 2) {
+        return chain.findIndex((_, index) =>
+          path.every((value, offset) => chain[index + offset] && nodeValue(chain[index + offset]) === value)
+        );
+      }
+      return -1;
     }
     return chain.findIndex(node => nodeValue(node) === String(pointer));
   };

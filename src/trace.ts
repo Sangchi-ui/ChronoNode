@@ -277,11 +277,11 @@ def safe_repr(value,limit=180):
 def safe_key(value):
     try: return str(value)
     except BaseException: return '<'+safe_type_name(value)+' key>'
-def norm(value, seen=None, depth=0, budget=None):
+def norm(value, seen=None, depth=0, budget=None, chain_len=0):
     if budget is None: budget=[3000]
-    try: return _norm(value,seen,depth,budget)
+    try: return _norm(value,seen,depth,budget,chain_len)
     except BaseException: return safe_repr(value,240)
-def _norm(value, seen=None, depth=0, budget=None):
+def _norm(value, seen=None, depth=0, budget=None, chain_len=0):
     if seen is None: seen=set()
     if budget is None: budget=[3000]
     budget[0]-=1
@@ -292,7 +292,7 @@ def _norm(value, seen=None, depth=0, budget=None):
         if value==float('inf'): return 'inf'
         if value==float('-inf'): return '-inf'
         return value
-    if depth > 5: return safe_repr(value)
+    if depth > 5 or chain_len > 64: return safe_repr(value)
     ident=id(value)
     if ident in seen: return '<cycle>'
     try: attrs=object.__getattribute__(value,'__dict__')
@@ -300,12 +300,17 @@ def _norm(value, seen=None, depth=0, budget=None):
     is_deque=type(value).__module__=='collections' and type(value).__name__=='deque'
     if isinstance(value,(list,tuple,set,frozenset,dict)) or is_deque or (type(attrs) is dict and not isinstance(value,types.ModuleType)):
         seen.add(ident)
-        if isinstance(value,dict): result={safe_key(k):norm(v,seen,depth+1,budget) for k,v in list(dict.items(value))[:80]}
-        elif isinstance(value,(list,tuple)): result=[norm(v,seen,depth+1,budget) for v in list(value)[:100]]
-        elif isinstance(value,(set,frozenset)): result=sorted([norm(v,seen,depth+1,budget) for v in list(value)[:100]],key=safe_repr)
-        elif is_deque: result=[norm(v,seen,depth+1,budget) for v in list(value)[:100]]
+        if isinstance(value,dict): result={safe_key(k):_norm(v,seen,depth+1,budget,chain_len) for k,v in list(dict.items(value))[:80]}
+        elif isinstance(value,(list,tuple)): result=[_norm(v,seen,depth+1,budget,chain_len) for v in list(value)[:100]]
+        elif isinstance(value,(set,frozenset)): result=sorted([_norm(v,seen,depth+1,budget,chain_len) for v in list(value)[:100]],key=safe_repr)
+        elif is_deque: result=[_norm(v,seen,depth+1,budget,chain_len) for v in list(value)[:100]]
         else:
-            result={'__type__':safe_type_name(value),**{safe_key(k):norm(v,seen,depth+1,budget) for k,v in list(attrs.items())[:80]}}
+            result={'__type__':safe_type_name(value)}
+            for k,v in list(attrs.items())[:80]:
+                is_chain = k in ('next', 'prev')
+                n_depth = depth if is_chain else depth + 1
+                n_chain = chain_len + 1 if is_chain else chain_len
+                result[safe_key(k)] = _norm(v, seen, n_depth, budget, n_chain)
             result['__id__']=object_token(value)
         seen.remove(ident)
         return result
@@ -342,10 +347,10 @@ def format_for_message(val, depth=0):
         return '<' + tname + '>'
     except BaseException:
         return safe_repr(val, 40)
-def json_safe(value,seen=None,depth=0):
-    try: return _json_safe(value,seen,depth)
+def json_safe(value,seen=None,depth=0,chain_len=0):
+    try: return _json_safe(value,seen,depth,chain_len)
     except BaseException: return safe_repr(value,240)
-def _json_safe(value,seen=None,depth=0):
+def _json_safe(value,seen=None,depth=0,chain_len=0):
     if seen is None: seen=set()
     if value is None or isinstance(value,(bool,int,str)): return value
     if isinstance(value,float):
@@ -353,20 +358,25 @@ def _json_safe(value,seen=None,depth=0):
         if value==float('inf'): return 'inf'
         if value==float('-inf'): return '-inf'
         return value
-    if depth>12: return safe_repr(value)
+    if depth>12 or chain_len > 64: return safe_repr(value)
     ident=id(value)
     if ident in seen: return '<cycle>'
     if isinstance(value,dict):
         seen.add(ident)
-        result={safe_key(k):json_safe(v,seen,depth+1) for k,v in list(dict.items(value))[:1000]}
+        result={}
+        for k,v in list(dict.items(value))[:1000]:
+            is_chain = safe_key(k) in ('next', 'prev')
+            n_depth = depth if is_chain else depth + 1
+            n_chain = chain_len + 1 if is_chain else chain_len
+            result[safe_key(k)] = _json_safe(v, seen, n_depth, n_chain)
         seen.remove(ident)
         return result
     if isinstance(value,(list,tuple,set,frozenset)) or (type(value).__module__=='collections' and type(value).__name__=='deque'):
         seen.add(ident)
-        result=[json_safe(v,seen,depth+1) for v in list(value)[:1000]]
+        result=[_json_safe(v,seen,depth+1,chain_len) for v in list(value)[:1000]]
         seen.remove(ident)
         return result
-    return norm(value)
+    return norm(value,seen=None,depth=depth,chain_len=chain_len)
 def is_complex(value):
     if isinstance(value,(dict,list,tuple,set,frozenset)): return True
     try: return type(object.__getattribute__(value,'__dict__')) is dict

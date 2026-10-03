@@ -409,4 +409,45 @@ if __name__ == "__main__":
       expect(ev.variables.Solution).toBeUndefined();
     }
   });
+
+  it('serializes 7+ node linked lists with duplicate node values without depth truncation', async () => {
+    const code = `class ListNode(object):
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+
+node1 = ListNode(1)
+node2 = ListNode(2)
+node3 = ListNode(6)
+node4 = ListNode(3)
+node5 = ListNode(4)
+node6 = ListNode(5)
+node7 = ListNode(6)
+
+node1.next = node2
+node2.next = node3
+node3.next = node4
+node4.next = node5
+node5.next = node6
+node6.next = node7
+head = node1
+`;
+    const events = await run(code);
+    const lastEvent = events.at(-1)!;
+    expect(lastEvent).toBeDefined();
+
+    // Traverse head to ensure node7 is reached and is a full object, not a string
+    let current: any = lastEvent.afterState.head;
+    const values: number[] = [];
+    const ids: string[] = [];
+    while (current && typeof current === 'object') {
+      values.push(current.val);
+      ids.push(current.__id__);
+      current = current.next;
+    }
+    expect(values).toEqual([1, 2, 6, 3, 4, 5, 6]);
+    expect(ids).toHaveLength(7);
+    // Node 3 and Node 7 both have val 6, but must have distinct identities
+    expect(ids[2]).not.toBe(ids[6]);
+  });
 });
