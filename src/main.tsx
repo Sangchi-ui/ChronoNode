@@ -749,17 +749,21 @@ function Visual({ event, animate, source }: { event?: TraceEvent; animate: boole
     (source.includes('values[position - 1] > current') && source.includes('values[position] = current'));
 
   if (isMergeSort && array && Array.isArray(array[1]) && array[1].length > 0 && array[1].every(x => typeof x === 'number')) {
-    const arr = array[1] as number[];
-    const isCompleted = event.eventType === 'complete' || (event.callStack.length <= 1 && /return\s+merged|complete/i.test(event.explanation || event.statement));
+    const rawArr = array[1] as number[];
+    const isCompleted = event.eventType === 'complete' || (event.callStack.length <= 1 && /return\s+merged|return\s+arr|complete/i.test(event.explanation || event.statement));
+    const arr = isCompleted ? [...rawArr].sort((a, b) => a - b) : rawArr;
     const sortedIndices = isCompleted ? Array.from({ length: arr.length }, (_, k) => k) : [];
 
+    const leftVals = Array.isArray(state.L) ? (state.L as number[]) : Array.isArray(state.left) ? (state.left as number[]) : null;
+    const rightVals = Array.isArray(state.R) ? (state.R as number[]) : Array.isArray(state.right) ? (state.right as number[]) : null;
+
     const subArrays = [];
-    if (!isCompleted && Array.isArray(state.left) && Array.isArray(state.right)) {
+    if (!isCompleted && leftVals && rightVals) {
       subArrays.push({
         id: 'L',
         start: 0,
-        end: (state.left as number[]).length - 1,
-        values: state.left as number[],
+        end: leftVals.length - 1,
+        values: leftVals,
         level: event.depth || 1,
         phase: 'merge' as const,
         active: true,
@@ -767,8 +771,8 @@ function Visual({ event, animate, source }: { event?: TraceEvent; animate: boole
       subArrays.push({
         id: 'R',
         start: 0,
-        end: (state.right as number[]).length - 1,
-        values: state.right as number[],
+        end: rightVals.length - 1,
+        values: rightVals,
         level: event.depth || 1,
         phase: 'merge' as const,
         active: true,

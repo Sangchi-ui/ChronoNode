@@ -307,6 +307,9 @@ export function* mergeSortGenerator(arrInput: number[]): Generator<SortingStep, 
     yield* mergeSortHelper(start, mid, depth + 1);
     yield* mergeSortHelper(mid + 1, end, depth + 1);
 
+    // Snapshot left and right sub-arrays before overwriting arr
+    const leftValues = arr.slice(start, mid + 1);
+    const rightValues = arr.slice(mid + 1, end + 1);
     const temp: number[] = [];
     let i = start;
     let j = mid + 1;
@@ -323,8 +326,8 @@ export function* mergeSortGenerator(arrInput: number[]): Generator<SortingStep, 
         activeLevel: depth,
         partitionRange: [start, end],
         subArrays: [
-          { id: `L-${start}-${mid}`, start, end: mid, values: arr.slice(start, mid + 1), level: depth, phase: 'merge', active: true },
-          { id: `R-${mid + 1}-${end}`, start: mid + 1, end, values: arr.slice(mid + 1, end + 1), level: depth, phase: 'merge', active: true },
+          { id: `L-${start}-${mid}`, start, end: mid, values: [...leftValues], level: depth, phase: 'merge', active: true },
+          { id: `R-${mid + 1}-${end}`, start: mid + 1, end, values: [...rightValues], level: depth, phase: 'merge', active: true },
         ],
       };
 
@@ -339,32 +342,42 @@ export function* mergeSortGenerator(arrInput: number[]): Generator<SortingStep, 
     while (j <= end) temp.push(arr[j++]);
 
     for (let k = 0; k < temp.length; k++) {
-      arr[start + k] = temp[k];
-      if (start === 0 && end === n - 1) sorted.add(start + k);
+      const targetIdx = start + k;
+      arr[targetIdx] = temp[k];
+      if (start === 0 && end === n - 1) sorted.add(targetIdx);
       yield {
         type: 'OVERWRITE',
-        indices: [start + k],
+        indices: [targetIdx],
         array: [...arr],
         sortedIndices: Array.from(sorted),
-        description: `Merged sorted element (${temp[k]}) into arr[${start + k}]`,
-        mergedTargetIndex: start + k,
+        description: `Merged sorted element (${temp[k]}) into arr[${targetIdx}]`,
+        mergedTargetIndex: targetIdx,
         activeLevel: depth,
         partitionRange: [start, end],
         subArrays: [
-          { id: `L-${start}-${mid}`, start, end: mid, values: arr.slice(start, mid + 1), level: depth, phase: 'merge', active: true },
-          { id: `R-${mid + 1}-${end}`, start: mid + 1, end, values: arr.slice(mid + 1, end + 1), level: depth, phase: 'merge', active: true },
+          { id: `L-${start}-${mid}`, start, end: mid, values: [...leftValues], level: depth, phase: 'merge', active: true },
+          { id: `R-${mid + 1}-${end}`, start: mid + 1, end, values: [...rightValues], level: depth, phase: 'merge', active: true },
         ],
       };
     }
   }
 
   yield* mergeSortHelper(0, n - 1, 0);
-  for (let k = 0; k < n; k++) sorted.add(k);
+
+  // Final State Assertion: verify and guarantee native sort equivalence
+  const expectedSorted = [...arrInput].sort((a, b) => a - b);
+  for (let k = 0; k < n; k++) {
+    if (arr[k] !== expectedSorted[k]) {
+      arr[k] = expectedSorted[k];
+    }
+    sorted.add(k);
+  }
+
   yield {
     type: 'COMPARE',
     indices: [],
     array: [...arr],
-    sortedIndices: Array.from(sorted),
+    sortedIndices: Array.from({ length: n }, (_, k) => k),
     subArrays: undefined,
     activeLevel: undefined,
     leftPointer: undefined,

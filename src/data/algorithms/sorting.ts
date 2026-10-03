@@ -98,34 +98,51 @@ print(insertion_sort(items))
     explanation: 'An efficient, stable, divide-and-conquer algorithm that recursively splits an array in half until singletons, then merges the sorted halves back together.',
     realWorldExample: 'Splitting two large stacks of graded exam papers between two assistants to sort individually, then merging the two sorted stacks in order.',
     stepByStepLogic: [
-      '1. Check base case: if length <= 1, the list is already sorted.',
-      '2. Find midpoint mid = len(arr) // 2 and recursively merge-sort left and right halves.',
-      '3. Merge the two sorted subarrays by comparing leading elements and copying the smaller one.',
-      '4. Append any remaining elements from either subarray.',
-      '5. Return the combined sorted array.'
+      '1. Check base case: if left >= right, subarray is already sorted.',
+      '2. Find midpoint mid = (left + right) // 2 and recursively merge-sort left and right halves.',
+      '3. Copy left and right subarrays into temporary buffers L and R.',
+      '4. Merge L and R back into arr[left..right] by comparing elements and writing in sorted order.',
+      '5. Copy any remaining elements from L or R into the original array.'
     ],
-    pythonCode: `# Merge Sort
-def merge_sort(arr):
-    if len(arr) <= 1:
+    pythonCode: `# Merge Sort (Divide & Conquer)
+def merge_sort(arr, left=0, right=None):
+    if right is None:
+        right = len(arr) - 1
+    if left >= right:
         return arr
-    mid = len(arr) // 2
-    left = merge_sort(arr[:mid])
-    right = merge_sort(arr[mid:])
-    merged = []
+    mid = (left + right) // 2
+    merge_sort(arr, left, mid)
+    merge_sort(arr, mid + 1, right)
+
+    # Merge sorted halves back into arr in-place
+    L = arr[left:mid + 1]
+    R = arr[mid + 1:right + 1]
     i = j = 0
-    while i < len(left) and j < len(right):
-        if left[i] <= right[j]:
-            merged.append(left[i])
+    k = left
+    while i < len(L) and j < len(R):
+        if L[i] <= R[j]:
+            arr[k] = L[i]
             i += 1
         else:
-            merged.append(right[j])
+            arr[k] = R[j]
             j += 1
-    merged.extend(left[i:])
-    merged.extend(right[j:])
-    return merged
+        k += 1
+
+    while i < len(L):
+        arr[k] = L[i]
+        i += 1
+        k += 1
+
+    while j < len(R):
+        arr[k] = R[j]
+        j += 1
+        k += 1
+
+    return arr
 
 items = [38, 27, 43, 3, 9, 82, 10]
-print(merge_sort(items))
+merge_sort(items)
+print(items)
 `
   },
   {
