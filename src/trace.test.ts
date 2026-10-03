@@ -371,4 +371,42 @@ describe('Python execution trace', () => {
     expect(events.some(event => /^(from |import |def |class )/.test(event.statement.trim()))).toBe(false);
     expect(events.some(event => event.statement === 'values = [3, 1]' && event.operation === 'assign')).toBe(true);
   });
+
+  it('omits if __name__ == "__main__" boilerplate and filters class objects from variables', async () => {
+    const code = `class ListNode(object):
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+
+class Solution(object):
+    def removeElements(self, head, val):
+        dummy = ListNode(-1)
+        dummy.next = head
+        p = dummy
+        while p.next:
+            if p.next.val == val:
+                p.next = p.next.next
+            else:
+                p = p.next
+        return dummy.next
+
+if __name__ == "__main__":
+    node1 = ListNode(1)
+    node2 = ListNode(2)
+    node1.next = node2
+    sol = Solution()
+    res = sol.removeElements(node1, 2)
+`;
+    const events = await run(code);
+    expect(events.length).toBeGreaterThan(0);
+    // Step 1 should be node1 = ListNode(1), not if __name__ == "__main__":
+    expect(events[0].statement).toBe('node1 = ListNode(1)');
+    expect(['call', 'assign']).toContain(events[0].operation);
+    expect(events.some(event => event.statement.includes('__name__'))).toBe(false);
+    // Class definitions ListNode and Solution must not appear as variables
+    for (const ev of events) {
+      expect(ev.variables.ListNode).toBeUndefined();
+      expect(ev.variables.Solution).toBeUndefined();
+    }
+  });
 });

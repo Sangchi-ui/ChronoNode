@@ -155,6 +155,12 @@ try:
             first_body_line=min((child.lineno for child in node.body),default=node.end_lineno+1)
             ignored_lines.update(range(min(starts),first_body_line))
             if isinstance(node,ast.ClassDef): ignored_scopes.add(node.name)
+        elif isinstance(node,ast.If):
+            test_src=''
+            try: test_src=ast.unparse(node.test)
+            except Exception: pass
+            if '__name__' in test_src:
+                ignored_lines.add(node.lineno)
         elif isinstance(node,(ast.ListComp,ast.SetComp,ast.DictComp,ast.GeneratorExp)):
             comprehension_lines.add(node.lineno)
             for generator in node.generators:
@@ -367,7 +373,7 @@ def is_complex(value):
     except BaseException: return False
 def visible(mapping):
     budget=[3000]
-    entries=[(k,v) for k,v in list(mapping.items()) if not safe_key(k).startswith('__') and k not in ('sys','json','linecache','dis','copy','re','types')]
+    entries=[(k,v) for k,v in list(mapping.items()) if not safe_key(k).startswith('__') and k not in ('sys','json','linecache','dis','copy','re','types') and not isinstance(v, (type, types.FunctionType, types.BuiltinFunctionType, types.MethodType, types.ModuleType))]
     entries.sort(key=lambda item: is_complex(item[1]))
     result={}
     for key,value in entries: result[safe_key(key)]=norm(value,budget=budget)
@@ -920,6 +926,7 @@ def tracer(frame,event,arg):
         op_count+=1
         if op_count>300000: raise TraceLimit('Execution stopped after 300,000 traced source callbacks (possible infinite loop).')
         commit_previous(frame)
+        if frame.f_lineno in ignored_lines: return tracer
         pending=pending_conditions.pop(id(frame),None)
         if pending:
             pending_line,pending_source,pending_indent,pending_state=pending

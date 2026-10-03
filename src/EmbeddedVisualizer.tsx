@@ -19,113 +19,6 @@ import {
   VisualErrorBoundary,
 } from './VisualizerCore';
 
-export interface ChronoEngineProps {
-  event: TraceEvent | null;
-  events: TraceEvent[];
-  index: number;
-  code: string;
-  animate: boolean;
-  progress: number;
-  setRunning: React.Dispatch<React.SetStateAction<boolean>>;
-  setIndex: React.Dispatch<React.SetStateAction<number>>;
-  matchMessage?: string | null;
-}
-
-export function ChronoEngine({
-  event,
-  events,
-  index,
-  code,
-  animate,
-  progress,
-  setRunning,
-  setIndex,
-  matchMessage,
-}: ChronoEngineProps) {
-  return (
-    <>
-      <div className="visual-head">
-        <div>
-          <span className="eyebrow">EXECUTION VISUALIZATION</span>
-          <h2>{event?.structure || 'Ready to trace'}</h2>
-        </div>
-        <span className="step">
-          {events.length ? `Step ${index + 1} / ${events.length}` : 'Click Run code to trace'}
-        </span>
-      </div>
-
-      <div
-        className="visual-canvas-container canvas relative overflow-hidden"
-        style={{ position: 'relative', overflow: 'hidden' }}
-      >
-        <PanZoomCanvas>
-          <VisualErrorBoundary key={event?.step ?? 0}>
-            <Visual event={event || undefined} animate={animate} source={code} />
-          </VisualErrorBoundary>
-        </PanZoomCanvas>
-        <div className="absolute bottom-3 right-3 z-20">
-          <ComplexityOdometer events={events} currentIndex={index} />
-        </div>
-      </div>
-
-      {/* Centered Node Legend below Canvas matching main Editor */}
-      <div className="legend" aria-label="Visualization legend">
-        <span>
-          <i className="legend-compare" />
-          Comparison
-        </span>
-        <span>
-          <i className="legend-change" />
-          Changed value
-        </span>
-        <span>
-          <i className="legend-pointer" />
-          Current pointer
-        </span>
-      </div>
-
-      {/* Timeline Scrubber */}
-      <div className="timeline" aria-label="Execution timeline">
-        <div className="progress" style={{ width: `${progress}%` }} />
-        <input
-          aria-label="Jump to execution step"
-          className="timeline-range"
-          type="range"
-          min="0"
-          max={Math.max(0, events.length - 1)}
-          value={index}
-          disabled={!events.length}
-          onChange={(e) => {
-            setRunning(false);
-            setIndex(Number(e.target.value));
-          }}
-        />
-        <div className="timeline-labels">
-          <span>
-            {events.length ? `#${index + 1} · line ${event?.line || '—'}` : 'Run to create steps'}
-          </span>
-          <span>
-            {events.length ? `${events.length} events` : '← → keys step · Space plays'}
-          </span>
-        </div>
-      </div>
-
-      {/* Explanation Banner */}
-      <div className="explain">
-        <span className="event-chip">{matchMessage ? 'MATCH' : event?.eventType || 'READY'}</span>
-        <div className="event-description">
-          <b>
-            {matchMessage
-              ? `✓ ${matchMessage} · ${event?.explanation || ''}`
-              : event?.explanation || 'Run your Python code to record its actual operations'}
-          </b>
-          <small>{event?.statement || 'The source line and exact state will appear here.'}</small>
-        </div>
-      </div>
-    </>
-  );
-}
-
 interface EmbeddedVisualizerProps {
   initialCode: string;
   title?: string;
@@ -198,7 +91,8 @@ export function EmbeddedVisualizer({ initialCode, title: _title }: EmbeddedVisua
   }, [initialCode]);
 
   const event = events[index];
-  const variables = event?.variables || {};
+  const isExcludedVar = (k: string, v: unknown) => k.startsWith('__') || (typeof v === 'string' && (v.startsWith("<class '") || v.startsWith('<function ') || v.startsWith('<module ')));
+  const variables = Object.fromEntries(Object.entries(event?.variables || {}).filter(([k, v]) => !isExcludedVar(k, v)));
 
   const beforeText = useMemo(
     () => (event?.beforeState ? JSON.stringify(event.beforeState, null, 2) : ''),
@@ -267,10 +161,10 @@ export function EmbeddedVisualizer({ initialCode, title: _title }: EmbeddedVisua
       typeof event.variables?.found_at === 'number'
         ? (event.variables.found_at as number)
         : typeof event.variables?.found === 'number'
-        ? (event.variables.found as number)
-        : typeof event.variables?.result === 'number' && event.variables.result >= 0
-        ? (event.variables.result as number)
-        : undefined;
+          ? (event.variables.found as number)
+          : typeof event.variables?.result === 'number' && event.variables.result >= 0
+            ? (event.variables.result as number)
+            : undefined;
     const comparing = event.eventType === 'compare' || event.operation === 'compare';
     const isBranchTaken = event.focus?.result === 'taken';
     const pointerNames = ['index', 'idx', 'i', 'j', 'start', 'left', 'right', 'position'];
@@ -280,8 +174,8 @@ export function EmbeddedVisualizer({ initialCode, title: _title }: EmbeddedVisua
     const pointerIndex = pointerEntry
       ? (pointerEntry[1] as number)
       : typeof currentState.index === 'number'
-      ? (currentState.index as number)
-      : undefined;
+        ? (currentState.index as number)
+        : undefined;
     const isMatchFound =
       foundAt !== undefined ||
       (comparing && isBranchTaken && event.structure === 'string') ||
@@ -290,8 +184,8 @@ export function EmbeddedVisualizer({ initialCode, title: _title }: EmbeddedVisua
       foundAt !== undefined
         ? foundAt
         : isMatchFound && pointerIndex !== undefined
-        ? pointerIndex
-        : event.focus?.indices?.[0] ?? -1;
+          ? pointerIndex
+          : event.focus?.indices?.[0] ?? -1;
     if (isMatchFound && matchStart >= 0) {
       return `Pattern matched at index ${matchStart}`;
     }
@@ -300,107 +194,103 @@ export function EmbeddedVisualizer({ initialCode, title: _title }: EmbeddedVisua
 
   return (
     <div className="workspace embedded-workspace w-full">
-      {/* Standardized Toolbar aligned with 50/50 Code Editor and Canvas */}
-      <div className="toolbar grid grid-cols-1 lg:grid-cols-2 w-full">
-        <div className="toolbar-editor-section">
+      {/* Standardized Toolbar directly above code editor matching main Editor */}
+      <div className="toolbar">
+        <button
+          className="reset-code-btn"
+          onClick={() => {
+            setCode(initialCode);
+            setEvents([]);
+            setIndex(0);
+            setRunning(false);
+            runTrace(false);
+          }}
+          title="Reset code to original"
+        >
+          <RotateCcw size={14} />
+          <span>Reset Code</span>
+        </button>
+
+        <div className="run-controls">
           <button
-            className="reset-code-btn"
+            disabled={!events.length}
             onClick={() => {
-              setCode(initialCode);
-              setEvents([]);
-              setIndex(0);
               setRunning(false);
-              runTrace(false);
+              setIndex(0);
             }}
-            title="Reset code to original"
+            title="Restart replay"
+            aria-label="Restart replay"
           >
-            <RotateCcw size={14} />
-            <span>Reset Code</span>
+            <RotateCcw size={16} />
           </button>
-
-          <div className="run-controls">
-            <button
-              disabled={!events.length}
-              onClick={() => {
-                setRunning(false);
-                setIndex(0);
-              }}
-              title="Restart replay"
-              aria-label="Restart replay"
-            >
-              <RotateCcw size={16} />
-            </button>
-            <button
-              disabled={!events.length || index === 0}
-              onClick={() => {
-                setRunning(false);
-                setIndex((i) => Math.max(0, i - 1));
-              }}
-              title="Previous step"
-              aria-label="Previous step"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <button
-              className="run"
-              disabled={loading}
-              onClick={handlePlayToggle}
-              aria-label={events.length ? (running ? 'Pause' : 'Resume') : 'Run code'}
-            >
-              {loading ? (
-                <span className="spinner" />
-              ) : running ? (
-                <Pause size={15} />
-              ) : (
-                <Play size={15} />
-              )}{' '}
-              {loading ? 'Tracing…' : events.length ? (running ? 'Pause' : 'Resume') : 'Run code'}
-            </button>
-            <button
-              disabled={!events.length || index >= events.length - 1}
-              onClick={() => {
-                setRunning(false);
-                setIndex((i) => Math.min(events.length - 1, i + 1));
-              }}
-              title="Next step"
-              aria-label="Next step"
-            >
-              <ChevronRight size={18} />
-            </button>
-            <button
-              disabled={!events.length || index >= events.length - 1}
-              onClick={() => {
-                setRunning(false);
-                setIndex(events.length - 1);
-              }}
-              title="Jump to last step"
-              aria-label="Jump to last step"
-            >
-              <SkipForward size={16} />
-            </button>
-          </div>
+          <button
+            disabled={!events.length || index === 0}
+            onClick={() => {
+              setRunning(false);
+              setIndex((i) => Math.max(0, i - 1));
+            }}
+            title="Previous step"
+            aria-label="Previous step"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            className="run"
+            disabled={loading}
+            onClick={handlePlayToggle}
+            aria-label={events.length ? (running ? 'Pause' : 'Resume') : 'Run code'}
+          >
+            {loading ? (
+              <span className="spinner" />
+            ) : running ? (
+              <Pause size={15} />
+            ) : (
+              <Play size={15} />
+            )}{' '}
+            {loading ? 'Tracing…' : events.length ? (running ? 'Pause' : 'Resume') : 'Run code'}
+          </button>
+          <button
+            disabled={!events.length || index >= events.length - 1}
+            onClick={() => {
+              setRunning(false);
+              setIndex((i) => Math.min(events.length - 1, i + 1));
+            }}
+            title="Next step"
+            aria-label="Next step"
+          >
+            <ChevronRight size={18} />
+          </button>
+          <button
+            disabled={!events.length || index >= events.length - 1}
+            onClick={() => {
+              setRunning(false);
+              setIndex(events.length - 1);
+            }}
+            title="Jump to last step"
+            aria-label="Jump to last step"
+          >
+            <SkipForward size={16} />
+          </button>
         </div>
 
-        <div className="toolbar-visual-section">
-          <label className="speed-control">
-            Speed{' '}
-            <input
-              aria-label="Playback speed"
-              type="range"
-              min="80"
-              max="1200"
-              step="40"
-              value={1200 - speed}
-              onChange={(e) => setSpeed(1200 - Number(e.target.value))}
-            />
-          </label>
-        </div>
+        <label className="speed-control">
+          Speed{' '}
+          <input
+            aria-label="Playback speed"
+            type="range"
+            min="80"
+            max="1200"
+            step="40"
+            value={1200 - speed}
+            onChange={(e) => setSpeed(1200 - Number(e.target.value))}
+          />
+        </label>
       </div>
 
-      {/* Strict 50/50 Split Panes on lg+, stacked below lg */}
-      <div className="panes embedded-panes embedded-split-workspace grid grid-cols-1 lg:grid-cols-2 w-full min-h-[80vh] lg:h-[calc(100vh-4rem)]">
-        {/* Left Side: Code Editor (strict 50% on lg+, full width stacked on mobile) */}
-        <div className="editor-pane embedded-code-pane h-full w-full min-w-0 overflow-auto">
+      {/* Strict 50/50 Split Panes matching main Editor */}
+      <div className="panes embedded-panes embedded-split-workspace">
+        {/* Left Side: Code Editor */}
+        <div className="editor-pane embedded-code-pane">
           <div className="pane-head">
             <span>algorithm.py</span>
             <span className="python">PYTHON</span>
@@ -430,19 +320,81 @@ export function EmbeddedVisualizer({ initialCode, title: _title }: EmbeddedVisua
           />
         </div>
 
-        {/* Right Side: ChronoEngine Visualizer (strict 50% on lg+, full width stacked on mobile) */}
-        <div className="visual-pane embedded-visual-pane h-full w-full min-w-0 overflow-auto">
-          <ChronoEngine
-            event={event}
-            events={events}
-            index={index}
-            code={code}
-            animate={animate}
-            progress={progress}
-            setRunning={setRunning}
-            setIndex={setIndex}
-            matchMessage={matchMessage}
-          />
+        {/* Right Side: Visualizer Canvas */}
+        <div className="visual-pane embedded-visual-pane">
+          <div className="visual-head">
+            <div>
+              <span className="eyebrow">EXECUTION VISUALIZATION</span>
+              <h2>{event?.structure || 'Ready to trace'}</h2>
+            </div>
+            <span className="step">
+              {events.length ? `Step ${index + 1} / ${events.length}` : 'Click Run code to trace'}
+            </span>
+          </div>
+
+          <div className="visual-canvas-container canvas">
+            <PanZoomCanvas>
+              <VisualErrorBoundary key={event?.step ?? 0}>
+                <Visual event={event} animate={animate} source={code} />
+              </VisualErrorBoundary>
+            </PanZoomCanvas>
+            <ComplexityOdometer events={events} currentIndex={index} />
+          </div>
+
+          {/* Centered Node Legend below Canvas matching main Editor */}
+          <div className="legend" aria-label="Visualization legend">
+            <span>
+              <i className="legend-compare" />
+              Comparison
+            </span>
+            <span>
+              <i className="legend-change" />
+              Changed value
+            </span>
+            <span>
+              <i className="legend-pointer" />
+              Current pointer
+            </span>
+          </div>
+
+          {/* Timeline Scrubber */}
+          <div className="timeline" aria-label="Execution timeline">
+            <div className="progress" style={{ width: `${progress}%` }} />
+            <input
+              aria-label="Jump to execution step"
+              className="timeline-range"
+              type="range"
+              min="0"
+              max={Math.max(0, events.length - 1)}
+              value={index}
+              disabled={!events.length}
+              onChange={(e) => {
+                setRunning(false);
+                setIndex(Number(e.target.value));
+              }}
+            />
+            <div className="timeline-labels">
+              <span>
+                {events.length ? `#${index + 1} · line ${event?.line || '—'}` : 'Run to create steps'}
+              </span>
+              <span>
+                {events.length ? `${events.length} events` : '← → keys step · Space plays'}
+              </span>
+            </div>
+          </div>
+
+          {/* Explanation Banner */}
+          <div className="explain">
+            <span className="event-chip">{matchMessage ? 'MATCH' : event?.eventType || 'READY'}</span>
+            <div className="event-description">
+              <b>
+                {matchMessage
+                  ? `✓ ${matchMessage} · ${event?.explanation || ''}`
+                  : event?.explanation || 'Run your Python code to record its actual operations'}
+              </b>
+              <small>{event?.statement || 'The source line and exact state will appear here.'}</small>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -518,15 +470,15 @@ export function EmbeddedVisualizer({ initialCode, title: _title }: EmbeddedVisua
                 Time{' '}
                 <b>
                   {event.lineComplexity.time &&
-                  event.lineComplexity.time !== 'O(?)' &&
-                  event.lineComplexity.time !== '?'
+                    event.lineComplexity.time !== 'O(?)' &&
+                    event.lineComplexity.time !== '?'
                     ? event.lineComplexity.time
                     : 'O(1)'}
                 </b>{' '}
                 ·{' '}
                 {event.lineComplexity.timeDetails &&
-                !event.lineComplexity.timeDetails.includes('not covered') &&
-                !event.lineComplexity.timeDetails.includes('O(?)')
+                  !event.lineComplexity.timeDetails.includes('not covered') &&
+                  !event.lineComplexity.timeDetails.includes('O(?)')
                   ? event.lineComplexity.timeDetails
                   : 'Scalar operation'}
               </span>
@@ -535,15 +487,15 @@ export function EmbeddedVisualizer({ initialCode, title: _title }: EmbeddedVisua
                 Space{' '}
                 <b>
                   {event.lineComplexity.space &&
-                  event.lineComplexity.space !== 'O(?)' &&
-                  event.lineComplexity.space !== '?'
+                    event.lineComplexity.space !== 'O(?)' &&
+                    event.lineComplexity.space !== '?'
                     ? event.lineComplexity.space
                     : 'O(1)'}
                 </b>{' '}
                 ·{' '}
                 {event.lineComplexity.spaceDetails &&
-                !event.lineComplexity.spaceDetails.includes('not covered') &&
-                !event.lineComplexity.spaceDetails.includes('O(?)')
+                  !event.lineComplexity.spaceDetails.includes('not covered') &&
+                  !event.lineComplexity.spaceDetails.includes('O(?)')
                   ? event.lineComplexity.spaceDetails
                   : 'No additional auxiliary elements'}
               </span>

@@ -6,7 +6,7 @@ import { tracePython, type TraceEvent } from './trace';
 import { resolveVisualizerRoute, type VisualizerRoute } from './visualizer-routing';
 import { PanZoomCanvas } from './PanZoomCanvas';
 import { AlgorithmsPanel } from './AlgorithmsPanel';
-import { AlgorithmPageLayout } from './AlgorithmPageLayout';
+import { AlgorithmDetailPage } from './AlgorithmDetailPage';
 import { SandboxMode } from './SandboxMode';
 import { EdgeCaseModal } from './EdgeCaseModal';
 import { ComplexityOdometer } from './ComplexityOdometer';
@@ -90,6 +90,48 @@ function findObject(state: Record<string, unknown>, field: string): [string, Rec
 
 function findTypedObject(state: Record<string, unknown>): [string, Record<string, unknown>] | undefined {
   return Object.entries(state).find(([, value]) => !!value && typeof value === 'object' && !Array.isArray(value) && typeof (value as Record<string, unknown>).__type__ === 'string') as [string, Record<string, unknown>] | undefined;
+}
+
+function findLinkedList(state: Record<string, unknown>): [string, Record<string, unknown>] | undefined {
+  const candidates: Array<{ name: string; node: Record<string, unknown>; length: number; priority: number }> = [];
+
+  for (const [name, val] of Object.entries(state)) {
+    if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
+    if (name.startsWith('__')) continue;
+    const rec = val as Record<string, unknown>;
+    const isNode = 'next' in rec || (typeof rec.__type__ === 'string' && /node|list/i.test(rec.__type__)) || ('val' in rec && !('left' in rec) && !('right' in rec));
+    if (!isNode) continue;
+
+    let count = 0;
+    const seen = new Set<unknown>();
+    let curr: any = rec;
+    while (curr && typeof curr === 'object' && !seen.has(curr) && count < 100) {
+      seen.add(curr);
+      count++;
+      curr = curr.next;
+    }
+
+    let priority = 0;
+    const lower = name.toLowerCase();
+    if (lower === 'dummy' || lower === 'sentinel') priority = 6;
+    else if (lower === 'head') priority = 5;
+    else if (lower === 'root' || lower === 'first') priority = 4;
+    else if (/^node[0-1]?$/i.test(lower)) priority = 3;
+    else if (lower === 'sol' || lower === 'solution') priority = -1;
+    else if (lower === 'p' || lower === 'curr' || lower === 'current') priority = 1;
+    else priority = 2;
+
+    candidates.push({ name, node: rec, length: count, priority });
+  }
+
+  if (candidates.length === 0) return undefined;
+
+  candidates.sort((a, b) => {
+    if (b.length !== a.length) return b.length - a.length;
+    return b.priority - a.priority;
+  });
+
+  return [candidates[0].name, candidates[0].node];
 }
 
 function ArrayView({ event, value, name, animate }: { event: TraceEvent; value: unknown[]; name: string; animate: boolean }) {
@@ -200,7 +242,7 @@ function GraphView({ event, graph }: { event: TraceEvent; graph: Record<string, 
   };
   const visited = collection(['visited', 'seen', 'finished']);
   const discovered = collection(['discovered', 'frontier']);
-  return <svg className="graph-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Graph structure and traversal state"><defs><marker id="edge-arrow" markerWidth="9" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0, 8 3.5, 0 7" fill="#536176"/></marker><marker id="active-edge-arrow" markerWidth="9" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0, 8 3.5, 0 7" fill="#d7f675"/></marker></defs>
+  return <svg className="graph-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Graph structure and traversal state"><defs><marker id="edge-arrow" markerWidth="9" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0, 8 3.5, 0 7" fill="#536176" /></marker><marker id="active-edge-arrow" markerWidth="9" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0, 8 3.5, 0 7" fill="#d7f675" /></marker></defs>
     {visibleLinks.map((link, i) => {
       const from = points.find(point => point.name === link.from), to = points.find(point => point.name === link.to); if (!from || !to) return null;
       const focused = !!next && active === link.from && next === link.to;
@@ -329,7 +371,7 @@ function LinkedListView({ event, root }: { event: TraceEvent; root: Record<strin
   const chain: Array<Record<string, unknown>> = [];
   const seen = new Set<object>();
   let current: any = root;
-  while (current && typeof current === 'object' && '__type__' in current && chain.length < 20 && !seen.has(current)) {
+  while (current && typeof current === 'object' && ('__type__' in current || 'next' in current || 'val' in current || 'value' in current) && chain.length < 50 && !seen.has(current)) {
     seen.add(current); chain.push(current); current = current.next;
   }
   const nodeValue = (node: Record<string, unknown>) => String(node.value ?? node.val ?? node.data ?? '?');
@@ -337,27 +379,72 @@ function LinkedListView({ event, root }: { event: TraceEvent; root: Record<strin
     const result: string[] = [];
     const pointerSeen = new Set<object>();
     let node: any = pointer;
-    while (node && typeof node === 'object' && '__type__' in node && result.length < 8 && !pointerSeen.has(node)) {
+    while (node && typeof node === 'object' && ('__type__' in node || 'next' in node || 'val' in node) && result.length < 8 && !pointerSeen.has(node)) {
       pointerSeen.add(node); result.push(nodeValue(node)); node = node.next;
     }
     return result;
   };
   const locatePointer = (pointer: unknown) => {
-    const pointerId = pointer && typeof pointer === 'object' ? (pointer as Record<string, unknown>).__id__ : undefined;
-    if (typeof pointerId === 'string') return chain.findIndex(node => node.__id__ === pointerId);
+    if (!pointer) return -1;
+    const pointerId = typeof pointer === 'object' ? (pointer as Record<string, unknown>).__id__ : undefined;
+    if (typeof pointerId === 'string') {
+      const idx = chain.findIndex(node => node.__id__ === pointerId);
+      if (idx >= 0) return idx;
+    }
     const path = pointerValues(pointer);
-    if (path.length) return chain.findIndex((_, index) => path.every((value, offset) => chain[index + offset] && nodeValue(chain[index + offset]) === value));
+    if (path.length) {
+      const idx = chain.findIndex((_, index) => path.every((value, offset) => chain[index + offset] && nodeValue(chain[index + offset]) === value));
+      if (idx >= 0) return idx;
+    }
     return chain.findIndex(node => nodeValue(node) === String(pointer));
   };
-  const activeIndex = locatePointer(event.variables.current ?? event.variables.node);
+
+  const nodePointers = new Map<number, string[]>();
+  const activeVars = { ...(event.state || {}), ...(event.afterState || {}), ...(event.variables || {}) };
+  for (const [varName, varVal] of Object.entries(activeVars)) {
+    if (!varVal || typeof varVal !== 'object') continue;
+    if (varName.startsWith('__') || varName === 'self' || varName.toLowerCase().startsWith('solution')) continue;
+    const nodeIdx = locatePointer(varVal);
+    if (nodeIdx >= 0) {
+      const list = nodePointers.get(nodeIdx) || [];
+      if (!list.includes(varName)) list.push(varName);
+      nodePointers.set(nodeIdx, list);
+    }
+  }
+
+  const primaryPointerName = ['p', 'curr', 'current', 'node', 'ptr', 'runner', 'walker', 'fast', 'slow'].find(name => event.variables[name] !== undefined);
+  const activeIndex = primaryPointerName ? locatePointer(event.variables[primaryPointerName]) : -1;
   const declaredTail = locatePointer(event.variables.tail);
   const tailIndex = declaredTail >= 0 ? declaredTail : chain.length - 1;
+
   return <div className="linked-view">
-    <span className="list-head">HEAD · {String(event.variables.head ? nodeValue(event.variables.head as Record<string, unknown>) : nodeValue(root))}</span>
-    <div className="linked-row">{chain.map((node, i) => <React.Fragment key={i}><div className={`linked-node ${i === activeIndex ? 'active-linked-node' : ''} ${i === tailIndex ? 'tail-linked-node' : ''}`}><small>{String(node.__type__)}</small><b>{nodeValue(node)}</b>{'prev' in node ? <small>prev ↶</small> : null}{i === activeIndex && <span className="node-pointer">CURRENT</span>}</div>{i < chain.length - 1 && <span className={`next-pointer ${i === activeIndex ? 'active-pointer' : ''}`}>next →</span>}</React.Fragment>)}</div>
+    {chain.length > 0 && <span className="list-head">HEAD · {nodeValue(chain[0])}</span>}
+    <div className="linked-row">
+      {chain.map((node, i) => {
+        const pointersHere = nodePointers.get(i) || [];
+        const isCurrentActive = i === activeIndex || (activeIndex < 0 && pointersHere.some(p => ['p', 'curr', 'current', 'node', 'ptr'].includes(p)));
+        return (
+          <React.Fragment key={i}>
+            <div className={`linked-node ${isCurrentActive ? 'active-linked-node' : ''} ${i === tailIndex ? 'tail-linked-node' : ''}`}>
+              <small>{String(node.__type__ ?? 'Node')}</small>
+              <b>{nodeValue(node)}</b>
+              {'prev' in node ? <small>prev ↶</small> : null}
+              {pointersHere.length > 0 ? (
+                <span className="node-pointer">{pointersHere.join(', ')}</span>
+              ) : isCurrentActive ? (
+                <span className="node-pointer">CURRENT</span>
+              ) : null}
+            </div>
+            {i < chain.length - 1 && <span className={`next-pointer ${isCurrentActive ? 'active-pointer' : ''}`}>next →</span>}
+          </React.Fragment>
+        );
+      })}
+    </div>
     {chain.length > 0 && <span className="list-tail">TAIL · {nodeValue(chain[tailIndex] || chain[chain.length - 1])}</span>}
     {!chain.length && <span className="muted">No linked nodes yet</span>}
-    <small className="list-source">Current pointer: {activeIndex >= 0 ? `node ${activeIndex + 1}` : '—'}</small>
+    <small className="list-source">
+      Current pointer: {activeIndex >= 0 ? `${primaryPointerName || 'pointer'} → node ${activeIndex + 1}` : (nodePointers.size > 0 ? Array.from(nodePointers.entries()).map(([idx, names]) => `${names.join(', ')} at node ${idx + 1}`).join(' · ') : '—')}
+    </small>
   </div>;
 }
 
@@ -379,13 +466,13 @@ function TreeView({ event, root }: { event: TraceEvent; root: Record<string, unk
   const activeValue = (value: unknown) => value && typeof value === 'object' && 'value' in value ? (value as Record<string, unknown>).value : value;
   const active = String(activeValue(current) ?? activeValue(node) ?? '');
   return <svg className="tree-svg" viewBox="0 0 620 390" role="img" aria-label="Tree nodes and child links">
-    {nodes.filter(node => node.parent).map(node => { const parent = nodes.find(candidate => candidate.key === node.parent)!; return <line key={`edge-${node.key}`} x1={xFor(parent)} y1={yFor(parent)} x2={xFor(node)} y2={yFor(node)} className="tree-edge"/>; })}
+    {nodes.filter(node => node.parent).map(node => { const parent = nodes.find(candidate => candidate.key === node.parent)!; return <line key={`edge-${node.key}`} x1={xFor(parent)} y1={yFor(parent)} x2={xFor(node)} y2={yFor(node)} className="tree-edge" />; })}
     {nodes.map(node => {
       const isActive = node.value === active;
       const isYellow = isActive;
       return (
         <g key={node.key}>
-          <circle cx={xFor(node)} cy={yFor(node)} r="23" className={isActive ? 'tree-node active-node' : 'tree-node'}/>
+          <circle cx={xFor(node)} cy={yFor(node)} r="23" className={isActive ? 'tree-node active-node' : 'tree-node'} />
           <text
             x={xFor(node)}
             y={yFor(node) + 5}
@@ -416,8 +503,8 @@ function HeapView({ event, name, values }: { event: TraceEvent; name: string; va
       const isActive = focused.has(index);
       return (
         <g key={index}>
-          {parent && <line x1={parent.x} y1={parent.y} x2={p.x} y2={p.y} className={edgeActive ? 'tree-edge active-edge' : 'tree-edge'}/>}
-          <circle cx={p.x} cy={p.y} r="20" className={isActive ? 'tree-node active-node' : 'tree-node'}/>
+          {parent && <line x1={parent.x} y1={parent.y} x2={p.x} y2={p.y} className={edgeActive ? 'tree-edge active-edge' : 'tree-edge'} />}
+          <circle cx={p.x} cy={p.y} r="20" className={isActive ? 'tree-node active-node' : 'tree-node'} />
           <text
             x={p.x}
             y={p.y + 5}
@@ -443,7 +530,7 @@ function UnionFindView({ event, state }: { event: TraceEvent; state: Record<stri
   const parent = Object.entries(state).find(([name, value]) => /parent/i.test(name) && Array.isArray(value));
   if (!parent) {
     const mapping = Object.entries(state).find(([name, value]) => /parent/i.test(name) && !!value && typeof value === 'object' && !Array.isArray(value));
-    return mapping ? <MappingView value={mapping[1] as Record<string, unknown>}/> : <StateSummaryView state={state}/>;
+    return mapping ? <MappingView value={mapping[1] as Record<string, unknown>} /> : <StateSummaryView state={state} />;
   }
   const active = new Set(event.focus.indices || []);
   return <div className="mapping-view union-find-view">{(parent[1] as unknown[]).map((root, index) => <div className={`mapping-entry ${active.has(index) ? 'is-focused' : ''}`} key={index}><code>{index}</code><span>→</span><b>{pretty(root)}</b></div>)}</div>;
@@ -455,10 +542,10 @@ function MathematicalView({ event, state }: { event: TraceEvent; state: Record<s
 }
 
 function RangeQueryView({ event, state, array, tree, animate }: { event: TraceEvent; state: Record<string, unknown>; array?: [string, unknown[]]; tree?: [string, Record<string, unknown>]; animate: boolean }) {
-  if (array && tree) return <div className="range-query-view"><ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/><TreeView event={event} root={tree[1]}/></div>;
-  if (array) return <ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/>;
-  if (tree) return <TreeView event={event} root={tree[1]}/>;
-  return <StateSummaryView state={state}/>;
+  if (array && tree) return <div className="range-query-view"><ArrayView event={event} value={array[1]} name={array[0]} animate={animate} /><TreeView event={event} root={tree[1]} /></div>;
+  if (array) return <ArrayView event={event} value={array[1]} name={array[0]} animate={animate} />;
+  if (tree) return <TreeView event={event} root={tree[1]} />;
+  return <StateSummaryView state={state} />;
 }
 
 function AuxiliaryStructures({ event, source }: { event?: TraceEvent; source: string }) {
@@ -476,12 +563,17 @@ function AuxiliaryStructures({ event, source }: { event?: TraceEvent; source: st
   if (!auxiliary.length) return null;
   return <section className="bottom-section auxiliary-structures"><span className="eyebrow">SUPPORTING STRUCTURES</span>{auxiliary.map(name => {
     const structure = dequeNames.has(name) || leftRemoved.has(name) || /\.\s*pop\s*\(\s*0\s*\)/.test(source) ? 'queue' : 'stack';
-    return <div className="auxiliary-structure" key={name}><span className="array-label">{name}</span><StackQueueView event={event} values={state[name] as unknown[]} structure={structure}/></div>;
+    return <div className="auxiliary-structure" key={name}><span className="array-label">{name}</span><StackQueueView event={event} values={state[name] as unknown[]} structure={structure} /></div>;
   })}</section>;
 }
 
 function StateSummaryView({ state }: { state: Record<string, unknown> }) {
-  const entries = Object.entries(state).filter(([name]) => !name.startsWith('__'));
+  const isExcluded = (name: string, value: unknown) => {
+    if (name.startsWith('__')) return true;
+    if (typeof value === 'string' && (value.startsWith("<class '") || value.startsWith('<function ') || value.startsWith('<module '))) return true;
+    return false;
+  };
+  const entries = Object.entries(state).filter(([name, value]) => !isExcluded(name, value));
   return <div className="mapping-view state-view">
     {entries.map(([name, value]) => <div className="mapping-entry" key={name}><code>{name}</code><span>:</span><b>{pretty(value)}</b></div>)}
     {!entries.length && <span className="muted">No state values captured</span>}
@@ -492,14 +584,14 @@ function BitwiseView({ state }: { state: Record<string, unknown> }) {
   const registers = Object.entries(state).filter(([, value]) => typeof value === 'number' && Number.isInteger(value));
   return <div className="mapping-view bitwise-view">
     {registers.map(([name, value]) => <div className="mapping-entry" key={name}><code>{name}</code><span>=</span><b>{String(value)}</b><code>{(value as number).toString(2)}</code></div>)}
-    {!registers.length && <StateSummaryView state={state}/ >}
+    {!registers.length && <StateSummaryView state={state} />}
   </div>;
 }
 
 function GeometryView({ state }: { state: Record<string, unknown> }) {
   const entry = Object.entries(state).find(([name, value]) => /point|coordinate/i.test(name) && Array.isArray(value) && value.every(point => Array.isArray(point) && point.length >= 2 && point.slice(0, 2).every(Number.isFinite)))
     || Object.entries(state).find(([, value]) => Array.isArray(value) && value.length > 0 && value.every(point => Array.isArray(point) && point.length >= 2 && point.slice(0, 2).every(Number.isFinite)));
-  if (!entry) return <StateSummaryView state={state}/>;
+  if (!entry) return <StateSummaryView state={state} />;
   const [name, rawPoints] = entry;
   const points = rawPoints as number[][];
   const xs = points.map(point => point[0]);
@@ -508,9 +600,9 @@ function GeometryView({ state }: { state: Record<string, unknown> }) {
   const x = (value: number) => 40 + (value - minX) / (maxX - minX || 1) * 540;
   const y = (value: number) => 280 - (value - minY) / (maxY - minY || 1) * 240;
   return <svg className="graph-svg geometry-svg" viewBox="0 0 620 320" role="img" aria-label={`${name} coordinate plot`}>
-    <line x1="40" y1="280" x2="590" y2="280" className="graph-edge"/><line x1="40" y1="280" x2="40" y2="30" className="graph-edge"/>
-    {points.length > 2 && <polyline points={points.map(point => `${x(point[0])},${y(point[1])}`).join(' ')} fill="none" className="graph-edge"/>}
-    {points.map((point, index) => <g key={index}><circle cx={x(point[0])} cy={y(point[1])} r="7" className="graph-node"/><text x={x(point[0]) + 9} y={y(point[1]) - 8} className="graph-node-label">({point[0]}, {point[1]})</text></g>)}
+    <line x1="40" y1="280" x2="590" y2="280" className="graph-edge" /><line x1="40" y1="280" x2="40" y2="30" className="graph-edge" />
+    {points.length > 2 && <polyline points={points.map(point => `${x(point[0])},${y(point[1])}`).join(' ')} fill="none" className="graph-edge" />}
+    {points.map((point, index) => <g key={index}><circle cx={x(point[0])} cy={y(point[1])} r="7" className="graph-node" /><text x={x(point[0]) + 9} y={y(point[1]) - 8} className="graph-node-label">({point[0]}, {point[1]})</text></g>)}
   </svg>;
 }
 
@@ -536,14 +628,19 @@ class VisualErrorBoundary extends React.Component<VisualErrorBoundaryProps, Visu
   }
 
   render() {
-    if (this.state.failed) return <div className="error visual-error" role="alert"><AlertCircle/> This step could not be visualized.</div>;
+    if (this.state.failed) return <div className="error visual-error" role="alert"><AlertCircle /> This step could not be visualized.</div>;
     return this.props.children;
   }
 }
 
 function GenericDebuggerView({ event, state }: { event: TraceEvent; state: Record<string, unknown> }) {
-  const locals = Object.entries(event.variables || {}).filter(([k]) => !k.startsWith('__'));
-  const globals = Object.entries(event.globals || {}).filter(([k]) => !k.startsWith('__') && !k.startsWith('_'));
+  const isExcluded = (k: string, v: unknown) => {
+    if (k.startsWith('__')) return true;
+    if (typeof v === 'string' && (v.startsWith("<class '") || v.startsWith('<function ') || v.startsWith('<module '))) return true;
+    return false;
+  };
+  const locals = Object.entries(event.variables || {}).filter(([k, v]) => !isExcluded(k, v));
+  const globals = Object.entries(event.globals || {}).filter(([k, v]) => !k.startsWith('_') && !isExcluded(k, v));
   const beforeState = event.beforeState || {};
   const changedVars = new Set(
     Object.keys(state).filter(k => JSON.stringify(beforeState[k]) !== JSON.stringify(state[k]))
@@ -628,33 +725,33 @@ function Visual({ event, animate, source }: { event?: TraceEvent; animate: boole
   const annotatedValue = annotatedName ? state[annotatedName] : undefined;
   const array = findArray(state, event.dataStructure, source);
   const stringValue = findString(state);
-  const linked = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : findObject(state, 'next') || (event.structure === 'linked-list' ? findObject(state, 'value') || findTypedObject(state) : undefined);
+  const linked = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : findLinkedList(state);
   const tree = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : findObject(state, 'left') || findObject(state, 'right') || findObject(state, 'value') || (event.structure === 'tree' ? findTypedObject(state) : undefined);
   const trie = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : findObject(state, 'children') || (event.structure === 'trie' ? findTypedObject(state) : undefined);
   const graphEntry = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : Object.entries(state).find(([name, value]) => /^(graph|network|adj|adjacency)$/i.test(name) && !!value && typeof value === 'object' && !Array.isArray(value));
   const hashEntry = Object.entries(state).find(([name, value]) => /hash|table|map|count|freq/i.test(name) && !!value && typeof value === 'object' && !Array.isArray(value));
   const hashValue = hashEntry?.[1] as Record<string, unknown> | undefined;
   const routes: Record<VisualizerRoute, () => React.ReactNode> = {
-    graph: () => graphEntry ? <GraphView event={event} graph={graphEntry[1] as Record<string, unknown>}/> : <StateSummaryView state={state}/>,
-    'linked-list': () => linked ? <LinkedListView event={event} root={linked[1]}/> : <StateSummaryView state={state}/>,
-    tree: () => tree ? <TreeView event={event} root={tree[1]}/> : <StateSummaryView state={state}/>,
-    trie: () => trie ? <MappingView value={(trie[1].children || trie[1]) as Record<string, unknown>}/> : <StateSummaryView state={state}/>,
-    heap: () => array ? <HeapView event={event} name={array[0]} values={array[1]}/> : <StateSummaryView state={state}/>,
-    stack: () => array ? <StackQueueView event={event} values={array[1]} structure="stack"/> : <StateSummaryView state={state}/>,
-    queue: () => array ? <StackQueueView event={event} values={array[1]} structure="queue"/> : <StateSummaryView state={state}/>,
-    deque: () => array ? <StackQueueView event={event} values={array[1]} structure="deque"/> : <StateSummaryView state={state}/>,
-    array: () => array ? <ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/> : <StateSummaryView state={state}/>,
-    'dynamic-programming': () => array ? <ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/> : <StateSummaryView state={state}/>,
-    'range-query': () => <RangeQueryView event={event} state={state} array={array} tree={tree} animate={animate}/>,
-    string: () => stringValue ? <StringView event={event} name={stringValue[0]} value={stringValue[1]} state={state} animate={animate}/> : <StateSummaryView state={state}/>,
-    'hash-table': () => hashValue ? <MappingView value={hashValue}/> : array ? <ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/> : <StateSummaryView state={state}/>,
-    'union-find': () => <UnionFindView event={event} state={state}/>,
-    recursion: () => <RecursionView event={event}/>,
-    bitwise: () => <BitwiseView state={state}/>,
-    geometry: () => <GeometryView state={state}/>,
-    mathematical: () => <MathematicalView event={event} state={state}/>,
-    variables: () => <GenericDebuggerView event={event} state={state}/>,
-    generic: () => <GenericDebuggerView event={event} state={state}/>,
+    graph: () => graphEntry ? <GraphView event={event} graph={graphEntry[1] as Record<string, unknown>} /> : <StateSummaryView state={state} />,
+    'linked-list': () => linked ? <LinkedListView event={event} root={linked[1]} /> : <div className="linked-view"><span className="muted">Initializing linked list...</span></div>,
+    tree: () => tree ? <TreeView event={event} root={tree[1]} /> : <StateSummaryView state={state} />,
+    trie: () => trie ? <MappingView value={(trie[1].children || trie[1]) as Record<string, unknown>} /> : <StateSummaryView state={state} />,
+    heap: () => array ? <HeapView event={event} name={array[0]} values={array[1]} /> : <StateSummaryView state={state} />,
+    stack: () => array ? <StackQueueView event={event} values={array[1]} structure="stack" /> : <StateSummaryView state={state} />,
+    queue: () => array ? <StackQueueView event={event} values={array[1]} structure="queue" /> : <StateSummaryView state={state} />,
+    deque: () => array ? <StackQueueView event={event} values={array[1]} structure="deque" /> : <StateSummaryView state={state} />,
+    array: () => array ? <ArrayView event={event} value={array[1]} name={array[0]} animate={animate} /> : <StateSummaryView state={state} />,
+    'dynamic-programming': () => array ? <ArrayView event={event} value={array[1]} name={array[0]} animate={animate} /> : <StateSummaryView state={state} />,
+    'range-query': () => <RangeQueryView event={event} state={state} array={array} tree={tree} animate={animate} />,
+    string: () => stringValue ? <StringView event={event} name={stringValue[0]} value={stringValue[1]} state={state} animate={animate} /> : <StateSummaryView state={state} />,
+    'hash-table': () => hashValue ? <MappingView value={hashValue} /> : array ? <ArrayView event={event} value={array[1]} name={array[0]} animate={animate} /> : <StateSummaryView state={state} />,
+    'union-find': () => <UnionFindView event={event} state={state} />,
+    recursion: () => <RecursionView event={event} />,
+    bitwise: () => <BitwiseView state={state} />,
+    geometry: () => <GeometryView state={state} />,
+    mathematical: () => <MathematicalView event={event} state={state} />,
+    variables: () => <GenericDebuggerView event={event} state={state} />,
+    generic: () => <GenericDebuggerView event={event} state={state} />,
   };
   return routes[route]();
 }
@@ -676,14 +773,14 @@ function App() {
   const codeEditor = useRef<any>(null);
   const decorations = useRef<string[]>([]);
   const event = events[index];
-  const variables = event?.variables || {};
+  const isExcludedVar = (k: string, v: unknown) => k.startsWith('__') || (typeof v === 'string' && (v.startsWith("<class '") || v.startsWith('<function ') || v.startsWith('<module ')));
+  const variables = Object.fromEntries(Object.entries(event?.variables || {}).filter(([k, v]) => !isExcludedVar(k, v)));
 
-  // Deep linking and browser history / hash sync for /algorithms/:slug
+  // Deep linking and browser history / hash sync
   useEffect(() => {
-    const handleRoute = () => {
+    const handleHash = () => {
       const hash = window.location.hash;
-      const pathname = window.location.pathname;
-      const match = hash.match(/#\/?algorithms\/([a-z0-9-]+)/i) || pathname.match(/\/algorithms\/([a-z0-9-]+)/i);
+      const match = hash.match(/#\/?algorithms\/([a-z0-9-]+)/i);
       if (match) {
         const found = allAlgorithms.find((a) => a.id === match[1]);
         if (found) {
@@ -694,12 +791,12 @@ function App() {
         setSelectedAlgorithm(null);
       }
     };
-    handleRoute();
-    window.addEventListener('hashchange', handleRoute);
-    window.addEventListener('popstate', handleRoute);
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    window.addEventListener('popstate', handleHash);
     return () => {
-      window.removeEventListener('hashchange', handleRoute);
-      window.removeEventListener('popstate', handleRoute);
+      window.removeEventListener('hashchange', handleHash);
+      window.removeEventListener('popstate', handleHash);
     };
   }, []);
 
@@ -777,31 +874,6 @@ function App() {
     return null;
   }, [event]);
 
-  // Single Source of Truth: Algorithm detail route renders <AlgorithmPageLayout />
-  // directly without outer wrappers or horizontal padding
-  if (selectedAlgorithm) {
-    return (
-      <AlgorithmPageLayout
-        algorithm={selectedAlgorithm}
-        onBack={() => {
-          setSelectedAlgorithm(null);
-          if (window.location.hash.includes('algorithms/')) {
-            window.location.hash = '';
-          }
-        }}
-        onLoadIntoWorkspace={(newCode) => {
-          setCode(newCode);
-          setEvents([]);
-          setIndex(0);
-          setRunning(false);
-          setSelectedAlgorithm(null);
-          setTab('editor');
-          window.location.hash = '';
-        }}
-      />
-    );
-  }
-
   return <div className="app">
     <header>
       <div className="brand">
@@ -823,7 +895,7 @@ function App() {
           }}
           aria-label="Learning resources"
         >
-          <BookOpen size={16}/> Learn
+          <BookOpen size={16} /> Learn
         </button>
         <button
           className={`ghost ${tab === 'editor' && !selectedAlgorithm ? 'active-header-btn' : ''}`}
@@ -836,7 +908,7 @@ function App() {
           }}
           aria-label="Python playground"
         >
-          <Code2 size={16}/> Playground
+          <Code2 size={16} /> Playground
         </button>
         <button
           className={`ghost ${tab === 'sandbox' && !selectedAlgorithm ? 'active-header-btn' : ''}`}
@@ -849,17 +921,37 @@ function App() {
           }}
           aria-label="Interactive Sandbox visual builder"
         >
-          <Layers size={16}/> Sandbox
+          <Layers size={16} /> Sandbox
         </button>
       </div>
     </header>
 
-    <main>
+    {selectedAlgorithm ? (
+      <AlgorithmDetailPage
+        algorithm={selectedAlgorithm}
+        onBack={() => {
+          setSelectedAlgorithm(null);
+          if (window.location.hash.includes('algorithms/')) {
+            window.location.hash = '';
+          }
+        }}
+        onLoadIntoWorkspace={(newCode) => {
+          setCode(newCode);
+          setEvents([]);
+          setIndex(0);
+          setRunning(false);
+          setSelectedAlgorithm(null);
+          setTab('editor');
+          window.location.hash = '';
+        }}
+      />
+    ) : (
+      <main>
         <aside className="sidebar">
           <div className="side-title">WORKSPACE</div>
-          <button className={`nav ${tab === 'editor' ? 'active' : ''}`} onClick={() => setTab('editor')}><Code2/> Editor</button>
-          <button className={`nav ${tab === 'algorithms' ? 'active' : ''}`} onClick={() => setTab('algorithms')}><GitBranch/> Algorithms</button>
-          <button className={`nav ${tab === 'sandbox' ? 'active' : ''}`} onClick={() => setTab('sandbox')}><Layers/> Sandbox Mode</button>
+          <button className={`nav ${tab === 'editor' ? 'active' : ''}`} onClick={() => setTab('editor')}><Code2 /> Editor</button>
+          <button className={`nav ${tab === 'algorithms' ? 'active' : ''}`} onClick={() => setTab('algorithms')}><GitBranch /> Algorithms</button>
+          <button className={`nav ${tab === 'sandbox' ? 'active' : ''}`} onClick={() => setTab('sandbox')}><Layers /> Sandbox Mode</button>
           <div className="side-title samples">SAMPLES</div>
           {Object.keys(samples).map(name => (
             <button
@@ -912,30 +1004,30 @@ function App() {
                 onClick={() => setShowEdgeModal(true)}
                 title="Load adversarial edge-case datasets"
               >
-                <Sparkles size={14}/> Edge Cases
+                <Sparkles size={14} /> Edge Cases
               </button>
-              <div className="run-controls"><button disabled={!events.length} onClick={() => { setRunning(false); setIndex(0); }} title="Restart replay" aria-label="Restart replay"><RotateCcw size={16}/></button><button disabled={!events.length || index === 0} onClick={() => { setRunning(false); setIndex(i => Math.max(0, i - 1)); }} title="Previous step" aria-label="Previous step"><ChevronLeft size={18}/></button><button className="run" disabled={loading} onClick={() => events.length ? setRunning(value => !value) : run()}>{loading ? <span className="spinner"/> : running ? <Pause size={15}/> : <Play size={15}/>} {loading ? 'Tracing…' : events.length ? running ? 'Pause' : 'Resume' : 'Run code'}</button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(i => Math.min(events.length - 1, i + 1)); }} title="Next step" aria-label="Next step"><ChevronRight size={18}/></button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(events.length - 1); }} title="Jump to last step" aria-label="Jump to last step"><SkipForward size={16}/></button></div>
-              <label className="speed-control">Speed <input aria-label="Playback speed" type="range" min="80" max="1200" step="40" value={1200 - speed} onChange={e => setSpeed(1200 - Number(e.target.value))}/></label>
+              <div className="run-controls"><button disabled={!events.length} onClick={() => { setRunning(false); setIndex(0); }} title="Restart replay" aria-label="Restart replay"><RotateCcw size={16} /></button><button disabled={!events.length || index === 0} onClick={() => { setRunning(false); setIndex(i => Math.max(0, i - 1)); }} title="Previous step" aria-label="Previous step"><ChevronLeft size={18} /></button><button className="run" disabled={loading} onClick={() => events.length ? setRunning(value => !value) : run()}>{loading ? <span className="spinner" /> : running ? <Pause size={15} /> : <Play size={15} />} {loading ? 'Tracing…' : events.length ? running ? 'Pause' : 'Resume' : 'Run code'}</button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(i => Math.min(events.length - 1, i + 1)); }} title="Next step" aria-label="Next step"><ChevronRight size={18} /></button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(events.length - 1); }} title="Jump to last step" aria-label="Jump to last step"><SkipForward size={16} /></button></div>
+              <label className="speed-control">Speed <input aria-label="Playback speed" type="range" min="80" max="1200" step="40" value={1200 - speed} onChange={e => setSpeed(1200 - Number(e.target.value))} /></label>
             </div>
-            <div className="panes"><div className="editor-pane"><div className="pane-head"><span>main.py</span><span className="python">PYTHON</span></div><Editor height="100%" language="python" theme="vs-dark" value={code} onChange={value => { setCode(value || ''); setEvents([]); setIndex(0); setRunning(false); }} onMount={editor => { codeEditor.current = editor; }} options={{ minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, automaticLayout: true, glyphMargin: true, ariaLabel: 'Python source code editor' }}/></div>
+            <div className="panes"><div className="editor-pane"><div className="pane-head"><span>main.py</span><span className="python">PYTHON</span></div><Editor height="100%" language="python" theme="vs-dark" value={code} onChange={value => { setCode(value || ''); setEvents([]); setIndex(0); setRunning(false); }} onMount={editor => { codeEditor.current = editor; }} options={{ minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, automaticLayout: true, glyphMargin: true, ariaLabel: 'Python source code editor' }} /></div>
               <div className="visual-pane"><div className="visual-head"><div><span className="eyebrow">EXECUTION VISUALIZATION</span><h2>{event?.structure || 'Ready to trace'}</h2></div><span className="step">{events.length ? `Step ${index + 1} / ${events.length}` : 'No trace yet'}</span></div>
                 <div className="visual-canvas-container">
-                  <PanZoomCanvas><VisualErrorBoundary key={event?.step ?? 0}><Visual event={event} animate={animate} source={code}/></VisualErrorBoundary></PanZoomCanvas>
+                  <PanZoomCanvas><VisualErrorBoundary key={event?.step ?? 0}><Visual event={event} animate={animate} source={code} /></VisualErrorBoundary></PanZoomCanvas>
                   <ComplexityOdometer events={events} currentIndex={index} />
                 </div>
-                <div className="legend" aria-label="Visualization legend"><span><i className="legend-compare"/>Comparison</span><span><i className="legend-change"/>Changed value</span><span><i className="legend-pointer"/>Current pointer</span></div>
-                <div className="timeline" aria-label="Execution timeline"><div className="progress" style={{ width: `${progress}%` }}/><input aria-label="Jump to execution step" className="timeline-range" type="range" min="0" max={Math.max(0, events.length - 1)} value={index} disabled={!events.length} onChange={e => { setRunning(false); setIndex(Number(e.target.value)); }}/><div className="timeline-labels"><span>{events.length ? `#${index + 1} · line ${event?.line || '—'}` : 'Run to create steps'}</span><span>{events.length ? `${events.length} events` : '← → keys step · Space plays'}</span></div></div>
+                <div className="legend" aria-label="Visualization legend"><span><i className="legend-compare" />Comparison</span><span><i className="legend-change" />Changed value</span><span><i className="legend-pointer" />Current pointer</span></div>
+                <div className="timeline" aria-label="Execution timeline"><div className="progress" style={{ width: `${progress}%` }} /><input aria-label="Jump to execution step" className="timeline-range" type="range" min="0" max={Math.max(0, events.length - 1)} value={index} disabled={!events.length} onChange={e => { setRunning(false); setIndex(Number(e.target.value)); }} /><div className="timeline-labels"><span>{events.length ? `#${index + 1} · line ${event?.line || '—'}` : 'Run to create steps'}</span><span>{events.length ? `${events.length} events` : '← → keys step · Space plays'}</span></div></div>
                 <div className="explain"><span className="event-chip">{matchMessage ? 'MATCH' : (event?.eventType || 'READY')}</span><div className="event-description"><b>{matchMessage ? `✓ ${matchMessage} · ${event?.explanation || ''}` : (event?.explanation || 'Run your Python code to record its actual operations')}</b><small>{event?.statement || 'The source line and exact state will appear here.'}</small></div></div>
               </div>
             </div>
             <div className="bottom">
-              <AuxiliaryStructures event={event} source={code}/>
+              <AuxiliaryStructures event={event} source={code} />
               <section className="bottom-section"><div className="section-heading"><span className="eyebrow">VARIABLES · {event?.function || '—'}()</span>{event && <span className="depth-pill">depth {event.depth}</span>}</div>{Object.keys(variables).length ? <div className="vars">{Object.entries(variables).map(([key, value]) => <div className="var" key={key}><code>{key}</code><span title={pretty(value)}>{pretty(value)}</span></div>)}</div> : <p className="muted">Variables at this execution point will appear here.</p>}</section>
               <section className="bottom-section call-stack-section"><span className="eyebrow">CALL STACK</span>{event?.callStack.length ? <div className="call-stack">{event.callStack.map((frame, i) => <div className={`call-frame ${i === event.callStack.length - 1 ? 'active-frame' : ''}`} key={`${frame.name}-${i}`}><b>{frame.name}()</b><span>line {frame.line}</span><small>{Object.entries(frame.arguments).map(([k, v]) => `${k}=${pretty(v)}`).join(', ')}</small></div>)}</div> : <p className="muted">No active function calls at this step.</p>}</section>
-              <section className="bottom-section event-meta"><span className="eyebrow">SOURCE & OPERATION</span><p className="source-statement"><code>{event?.line ? `${event.line}: ` : ''}{event?.statement || 'Waiting for execution'}</code></p><p className="muted">{event?.operation || '—'}{event?.returnValue !== undefined ? ` · returns ${pretty(event.returnValue)}` : ''}{event?.focus.result ? ` · branch ${event.focus.result}` : ''}{matchMessage ? ` · ✓ ${matchMessage}` : ''}</p>{matchMessage && <div className="operation-status-badge" aria-label="Operation status">✓ {matchMessage}</div>}{event?.lineComplexity && <div className="line-complexity" aria-label="Time and space cost for this step"><span>Time <b>{event.lineComplexity.time && event.lineComplexity.time !== 'O(?)' && event.lineComplexity.time !== '?' ? event.lineComplexity.time : 'O(1)'}</b> · {event.lineComplexity.timeDetails && !event.lineComplexity.timeDetails.includes('not covered') && !event.lineComplexity.timeDetails.includes('O(?)') ? event.lineComplexity.timeDetails : 'Scalar operation'}</span><br/><span>Space <b>{event.lineComplexity.space && event.lineComplexity.space !== 'O(?)' && event.lineComplexity.space !== '?' ? event.lineComplexity.space : 'O(1)'}</b> · {event.lineComplexity.spaceDetails && !event.lineComplexity.spaceDetails.includes('not covered') && !event.lineComplexity.spaceDetails.includes('O(?)') ? event.lineComplexity.spaceDetails : 'No additional auxiliary elements'}</span></div>}{event?.output && <pre className="event-output">{event.output}</pre>}<label className="toggle"><input type="checkbox" checked={animate} onChange={e => setAnimate(e.target.checked)}/> Animate changed values</label><button className="states-toggle" onClick={() => setShowStates(open => !open)}>{showStates ? 'Hide' : 'Inspect'} before / after state</button></section>
+              <section className="bottom-section event-meta"><span className="eyebrow">SOURCE & OPERATION</span><p className="source-statement"><code>{event?.line ? `${event.line}: ` : ''}{event?.statement || 'Waiting for execution'}</code></p><p className="muted">{event?.operation || '—'}{event?.returnValue !== undefined ? ` · returns ${pretty(event.returnValue)}` : ''}{event?.focus.result ? ` · branch ${event.focus.result}` : ''}{matchMessage ? ` · ✓ ${matchMessage}` : ''}</p>{matchMessage && <div className="operation-status-badge" aria-label="Operation status">✓ {matchMessage}</div>}{event?.lineComplexity && <div className="line-complexity" aria-label="Time and space cost for this step"><span>Time <b>{event.lineComplexity.time && event.lineComplexity.time !== 'O(?)' && event.lineComplexity.time !== '?' ? event.lineComplexity.time : 'O(1)'}</b> · {event.lineComplexity.timeDetails && !event.lineComplexity.timeDetails.includes('not covered') && !event.lineComplexity.timeDetails.includes('O(?)') ? event.lineComplexity.timeDetails : 'Scalar operation'}</span><br /><span>Space <b>{event.lineComplexity.space && event.lineComplexity.space !== 'O(?)' && event.lineComplexity.space !== '?' ? event.lineComplexity.space : 'O(1)'}</b> · {event.lineComplexity.spaceDetails && !event.lineComplexity.spaceDetails.includes('not covered') && !event.lineComplexity.spaceDetails.includes('O(?)') ? event.lineComplexity.spaceDetails : 'No additional auxiliary elements'}</span></div>}{event?.output && <pre className="event-output">{event.output}</pre>}<label className="toggle"><input type="checkbox" checked={animate} onChange={e => setAnimate(e.target.checked)} /> Animate changed values</label><button className="states-toggle" onClick={() => setShowStates(open => !open)}>{showStates ? 'Hide' : 'Inspect'} before / after state</button></section>
             </div>
             {showStates && event && <div className="state-comparison"><div><span className="eyebrow">BEFORE THIS EVENT</span><pre>{beforeText}</pre></div><div><span className="eyebrow">AFTER THIS EVENT</span><pre>{afterText}</pre></div></div>}
-            {error && <div className="toast error"><AlertCircle size={18}/>{error}</div>}
+            {error && <div className="toast error"><AlertCircle size={18} />{error}</div>}
           </section>
         )}
         <EdgeCaseModal
@@ -950,7 +1042,8 @@ function App() {
           }}
         />
       </main>
+    )}
   </div>;
 }
 
-createRoot(document.getElementById('root')!).render(<App/>);
+createRoot(document.getElementById('root')!).render(<App />);

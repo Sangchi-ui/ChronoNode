@@ -56,6 +56,48 @@ export function findTypedObject(state: Record<string, unknown>): [string, Record
   return Object.entries(state).find(([, value]) => !!value && typeof value === 'object' && !Array.isArray(value) && typeof (value as Record<string, unknown>).__type__ === 'string') as [string, Record<string, unknown>] | undefined;
 }
 
+export function findLinkedList(state: Record<string, unknown>): [string, Record<string, unknown>] | undefined {
+  const candidates: Array<{ name: string; node: Record<string, unknown>; length: number; priority: number }> = [];
+
+  for (const [name, val] of Object.entries(state)) {
+    if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
+    if (name.startsWith('__')) continue;
+    const rec = val as Record<string, unknown>;
+    const isNode = 'next' in rec || (typeof rec.__type__ === 'string' && /node|list/i.test(rec.__type__)) || ('val' in rec && !('left' in rec) && !('right' in rec));
+    if (!isNode) continue;
+
+    let count = 0;
+    const seen = new Set<unknown>();
+    let curr: any = rec;
+    while (curr && typeof curr === 'object' && !seen.has(curr) && count < 100) {
+      seen.add(curr);
+      count++;
+      curr = curr.next;
+    }
+
+    let priority = 0;
+    const lower = name.toLowerCase();
+    if (lower === 'dummy' || lower === 'sentinel') priority = 6;
+    else if (lower === 'head') priority = 5;
+    else if (lower === 'root' || lower === 'first') priority = 4;
+    else if (/^node[0-1]?$/i.test(lower)) priority = 3;
+    else if (lower === 'sol' || lower === 'solution') priority = -1;
+    else if (lower === 'p' || lower === 'curr' || lower === 'current') priority = 1;
+    else priority = 2;
+
+    candidates.push({ name, node: rec, length: count, priority });
+  }
+
+  if (candidates.length === 0) return undefined;
+
+  candidates.sort((a, b) => {
+    if (b.length !== a.length) return b.length - a.length;
+    return b.priority - a.priority;
+  });
+
+  return [candidates[0].name, candidates[0].node];
+}
+
 export function ArrayView({ event, value, name, animate }: { event: TraceEvent; value: unknown[]; name: string; animate: boolean }) {
   if (value.some(Array.isArray)) {
     const readCells = new Set((event.focus.readCells || []).map(([row, col]) => `${row},${col}`));
@@ -290,7 +332,7 @@ export function LinkedListView({ event, root }: { event: TraceEvent; root: Recor
   const chain: Array<Record<string, unknown>> = [];
   const seen = new Set<object>();
   let current: any = root;
-  while (current && typeof current === 'object' && '__type__' in current && chain.length < 20 && !seen.has(current)) {
+  while (current && typeof current === 'object' && ('__type__' in current || 'next' in current || 'val' in current || 'value' in current) && chain.length < 50 && !seen.has(current)) {
     seen.add(current); chain.push(current); current = current.next;
   }
   const nodeValue = (node: Record<string, unknown>) => String(node.value ?? node.val ?? node.data ?? '?');
@@ -298,27 +340,72 @@ export function LinkedListView({ event, root }: { event: TraceEvent; root: Recor
     const result: string[] = [];
     const pointerSeen = new Set<object>();
     let node: any = pointer;
-    while (node && typeof node === 'object' && '__type__' in node && result.length < 8 && !pointerSeen.has(node)) {
+    while (node && typeof node === 'object' && ('__type__' in node || 'next' in node || 'val' in node) && result.length < 8 && !pointerSeen.has(node)) {
       pointerSeen.add(node); result.push(nodeValue(node)); node = node.next;
     }
     return result;
   };
   const locatePointer = (pointer: unknown) => {
-    const pointerId = pointer && typeof pointer === 'object' ? (pointer as Record<string, unknown>).__id__ : undefined;
-    if (typeof pointerId === 'string') return chain.findIndex(node => node.__id__ === pointerId);
+    if (!pointer) return -1;
+    const pointerId = typeof pointer === 'object' ? (pointer as Record<string, unknown>).__id__ : undefined;
+    if (typeof pointerId === 'string') {
+      const idx = chain.findIndex(node => node.__id__ === pointerId);
+      if (idx >= 0) return idx;
+    }
     const path = pointerValues(pointer);
-    if (path.length) return chain.findIndex((_, index) => path.every((value, offset) => chain[index + offset] && nodeValue(chain[index + offset]) === value));
+    if (path.length) {
+      const idx = chain.findIndex((_, index) => path.every((value, offset) => chain[index + offset] && nodeValue(chain[index + offset]) === value));
+      if (idx >= 0) return idx;
+    }
     return chain.findIndex(node => nodeValue(node) === String(pointer));
   };
-  const activeIndex = locatePointer(event.variables.current ?? event.variables.node);
+
+  const nodePointers = new Map<number, string[]>();
+  const activeVars = { ...(event.state || {}), ...(event.afterState || {}), ...(event.variables || {}) };
+  for (const [varName, varVal] of Object.entries(activeVars)) {
+    if (!varVal || typeof varVal !== 'object') continue;
+    if (varName.startsWith('__') || varName === 'self' || varName.toLowerCase().startsWith('solution')) continue;
+    const nodeIdx = locatePointer(varVal);
+    if (nodeIdx >= 0) {
+      const list = nodePointers.get(nodeIdx) || [];
+      if (!list.includes(varName)) list.push(varName);
+      nodePointers.set(nodeIdx, list);
+    }
+  }
+
+  const primaryPointerName = ['p', 'curr', 'current', 'node', 'ptr', 'runner', 'walker', 'fast', 'slow'].find(name => event.variables[name] !== undefined);
+  const activeIndex = primaryPointerName ? locatePointer(event.variables[primaryPointerName]) : -1;
   const declaredTail = locatePointer(event.variables.tail);
   const tailIndex = declaredTail >= 0 ? declaredTail : chain.length - 1;
+
   return <div className="linked-view">
-    <span className="list-head">HEAD · {String(event.variables.head ? nodeValue(event.variables.head as Record<string, unknown>) : nodeValue(root))}</span>
-    <div className="linked-row">{chain.map((node, i) => <React.Fragment key={i}><div className={`linked-node ${i === activeIndex ? 'active-linked-node' : ''} ${i === tailIndex ? 'tail-linked-node' : ''}`}><small>{String(node.__type__)}</small><b>{nodeValue(node)}</b>{'prev' in node ? <small>prev ↶</small> : null}{i === activeIndex && <span className="node-pointer">CURRENT</span>}</div>{i < chain.length - 1 && <span className={`next-pointer ${i === activeIndex ? 'active-pointer' : ''}`}>next →</span>}</React.Fragment>)}</div>
+    {chain.length > 0 && <span className="list-head">HEAD · {nodeValue(chain[0])}</span>}
+    <div className="linked-row">
+      {chain.map((node, i) => {
+        const pointersHere = nodePointers.get(i) || [];
+        const isCurrentActive = i === activeIndex || (activeIndex < 0 && pointersHere.some(p => ['p', 'curr', 'current', 'node', 'ptr'].includes(p)));
+        return (
+          <React.Fragment key={i}>
+            <div className={`linked-node ${isCurrentActive ? 'active-linked-node' : ''} ${i === tailIndex ? 'tail-linked-node' : ''}`}>
+              <small>{String(node.__type__ ?? 'Node')}</small>
+              <b>{nodeValue(node)}</b>
+              {'prev' in node ? <small>prev ↶</small> : null}
+              {pointersHere.length > 0 ? (
+                <span className="node-pointer">{pointersHere.join(', ')}</span>
+              ) : isCurrentActive ? (
+                <span className="node-pointer">CURRENT</span>
+              ) : null}
+            </div>
+            {i < chain.length - 1 && <span className={`next-pointer ${isCurrentActive ? 'active-pointer' : ''}`}>next →</span>}
+          </React.Fragment>
+        );
+      })}
+    </div>
     {chain.length > 0 && <span className="list-tail">TAIL · {nodeValue(chain[tailIndex] || chain[chain.length - 1])}</span>}
     {!chain.length && <span className="muted">No linked nodes yet</span>}
-    <small className="list-source">Current pointer: {activeIndex >= 0 ? `node ${activeIndex + 1}` : '—'}</small>
+    <small className="list-source">
+      Current pointer: {activeIndex >= 0 ? `${primaryPointerName || 'pointer'} → node ${activeIndex + 1}` : (nodePointers.size > 0 ? Array.from(nodePointers.entries()).map(([idx, names]) => `${names.join(', ')} at node ${idx + 1}`).join(' · ') : '—')}
+    </small>
   </div>;
 }
 
@@ -442,7 +529,12 @@ export function AuxiliaryStructures({ event, source }: { event?: TraceEvent; sou
 }
 
 export function StateSummaryView({ state }: { state: Record<string, unknown> }) {
-  const entries = Object.entries(state).filter(([name]) => !name.startsWith('__'));
+  const isExcluded = (name: string, value: unknown) => {
+    if (name.startsWith('__')) return true;
+    if (typeof value === 'string' && (value.startsWith("<class '") || value.startsWith('<function ') || value.startsWith('<module '))) return true;
+    return false;
+  };
+  const entries = Object.entries(state).filter(([name, value]) => !isExcluded(name, value));
   return <div className="mapping-view state-view">
     {entries.map(([name, value]) => <div className="mapping-entry" key={name}><code>{name}</code><span>:</span><b>{pretty(value)}</b></div>)}
     {!entries.length && <span className="muted">No state values captured</span>}
@@ -503,8 +595,13 @@ export class VisualErrorBoundary extends React.Component<VisualErrorBoundaryProp
 }
 
 export function GenericDebuggerView({ event, state }: { event: TraceEvent; state: Record<string, unknown> }) {
-  const locals = Object.entries(event.variables || {}).filter(([k]) => !k.startsWith('__'));
-  const globals = Object.entries(event.globals || {}).filter(([k]) => !k.startsWith('__') && !k.startsWith('_'));
+  const isExcluded = (k: string, v: unknown) => {
+    if (k.startsWith('__')) return true;
+    if (typeof v === 'string' && (v.startsWith("<class '") || v.startsWith('<function ') || v.startsWith('<module '))) return true;
+    return false;
+  };
+  const locals = Object.entries(event.variables || {}).filter(([k, v]) => !isExcluded(k, v));
+  const globals = Object.entries(event.globals || {}).filter(([k, v]) => !k.startsWith('_') && !isExcluded(k, v));
   const beforeState = event.beforeState || {};
   const changedVars = new Set(
     Object.keys(state).filter(k => JSON.stringify(beforeState[k]) !== JSON.stringify(state[k]))
@@ -589,7 +686,7 @@ export function Visual({ event, animate, source }: { event?: TraceEvent; animate
   const annotatedValue = annotatedName ? state[annotatedName] : undefined;
   const array = findArray(state, event.dataStructure, source);
   const stringValue = findString(state);
-  const linked = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : findObject(state, 'next') || (event.structure === 'linked-list' ? findObject(state, 'value') || findTypedObject(state) : undefined);
+  const linked = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : findLinkedList(state);
   const tree = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : findObject(state, 'left') || findObject(state, 'right') || findObject(state, 'value') || (event.structure === 'tree' ? findTypedObject(state) : undefined);
   const trie = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : findObject(state, 'children') || (event.structure === 'trie' ? findTypedObject(state) : undefined);
   const graphEntry = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : Object.entries(state).find(([name, value]) => /^(graph|network|adj|adjacency)$/i.test(name) && !!value && typeof value === 'object' && !Array.isArray(value));
@@ -597,7 +694,7 @@ export function Visual({ event, animate, source }: { event?: TraceEvent; animate
   const hashValue = hashEntry?.[1] as Record<string, unknown> | undefined;
   const routes: Record<VisualizerRoute, () => React.ReactNode> = {
     graph: () => graphEntry ? <GraphView event={event} graph={graphEntry[1] as Record<string, unknown>}/> : <StateSummaryView state={state}/>,
-    'linked-list': () => linked ? <LinkedListView event={event} root={linked[1]}/> : <StateSummaryView state={state}/>,
+    'linked-list': () => linked ? <LinkedListView event={event} root={linked[1]}/> : <div className="linked-view"><span className="muted">Initializing linked list...</span></div>,
     tree: () => tree ? <TreeView event={event} root={tree[1]}/> : <StateSummaryView state={state}/>,
     trie: () => trie ? <MappingView value={(trie[1].children || trie[1]) as Record<string, unknown>}/> : <StateSummaryView state={state}/>,
     heap: () => array ? <HeapView event={event} name={array[0]} values={array[1]}/> : <StateSummaryView state={state}/>,
