@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Editor from '@monaco-editor/react';
-import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, Code2, GitBranch, Layers, Pause, Play, RotateCcw, SkipBack, SkipForward, Sparkles } from 'lucide-react';
+import { AlertCircle, BookOpen, ChevronLeft, ChevronRight, Code2, GitBranch, Layers, Maximize2, Minimize2, Pause, Play, RotateCcw, SkipBack, SkipForward, Sparkles } from 'lucide-react';
 import { tracePython, type TraceEvent } from './trace';
 import { resolveVisualizerRoute, type VisualizerRoute } from './visualizer-routing';
 import { PanZoomCanvas } from './PanZoomCanvas';
@@ -776,11 +776,80 @@ function App() {
   const [error, setError] = useState('');
   const [animate, setAnimate] = useState(true);
   const [showStates, setShowStates] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const visualizerRef = useRef<HTMLDivElement>(null);
   const codeEditor = useRef<any>(null);
   const decorations = useRef<string[]>([]);
   const event = events[index];
   const isExcludedVar = (k: string, v: unknown) => k.startsWith('__') || (typeof v === 'string' && (v.startsWith("<class '") || v.startsWith('<function ') || v.startsWith('<module ')));
   const variables = Object.fromEntries(Object.entries(event?.variables || {}).filter(([k, v]) => !isExcludedVar(k, v)));
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentFullscreen =
+        document.fullscreenElement === visualizerRef.current ||
+        (document as any).webkitFullscreenElement === visualizerRef.current ||
+        (document as any).mozFullScreenElement === visualizerRef.current ||
+        (document as any).msFullscreenElement === visualizerRef.current;
+      setIsFullscreen(Boolean(isCurrentFullscreen));
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
+
+  const enterFullscreen = async () => {
+    if (!visualizerRef.current) return;
+    try {
+      if (visualizerRef.current.requestFullscreen) {
+        await visualizerRef.current.requestFullscreen();
+      } else if ((visualizerRef.current as any).webkitRequestFullscreen) {
+        await (visualizerRef.current as any).webkitRequestFullscreen();
+      } else if ((visualizerRef.current as any).msRequestFullscreen) {
+        await (visualizerRef.current as any).msRequestFullscreen();
+      }
+    } catch (err) {
+      console.error('Fullscreen request failed:', err);
+    }
+  };
+
+  const exitFullscreen = async () => {
+    try {
+      if (
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      ) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        } else if ((document as any).msExitFullscreen) {
+          await (document as any).msExitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.error('Exit fullscreen failed:', err);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (isFullscreen || document.fullscreenElement === visualizerRef.current) {
+      exitFullscreen();
+    } else {
+      enterFullscreen();
+    }
+  };
 
   // Deep linking and browser history / hash sync
   useEffect(() => {
@@ -1016,7 +1085,7 @@ function App() {
               <label className="speed-control">Speed <input aria-label="Playback speed" type="range" min="80" max="1200" step="40" value={1200 - speed} onChange={e => setSpeed(1200 - Number(e.target.value))} /></label>
             </div>
             <div className="panes"><div className="editor-pane"><div className="pane-head"><span>main.py</span><span className="python">PYTHON</span></div><Editor height="100%" language="python" theme="vs-dark" value={code} onChange={value => { setCode(value || ''); setEvents([]); setIndex(0); setRunning(false); }} onMount={editor => { codeEditor.current = editor; }} options={{ minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, automaticLayout: true, glyphMargin: true, ariaLabel: 'Python source code editor' }} /></div>
-              <div className="visual-pane"><div className="visual-head"><div><span className="eyebrow">EXECUTION VISUALIZATION</span><h2>{event?.structure || 'Ready to trace'}</h2></div><span className="step">{events.length ? `Step ${index + 1} / ${events.length}` : 'No trace yet'}</span></div>
+              <div ref={visualizerRef} className={`visual-pane ${isFullscreen ? 'is-fullscreen bg-slate-950' : ''}`} data-testid="visualizer-fullscreen-wrapper"><div className="visual-head"><div className="visual-head-info"><span className="eyebrow">EXECUTION VISUALIZATION</span><h2>{event?.structure || 'Ready to trace'}</h2></div>{isFullscreen && (<div className="fullscreen-playback-bar" data-testid="fullscreen-playback-bar"><div className="run-controls"><button disabled={!events.length} onClick={() => { setRunning(false); setIndex(0); }} title="Restart replay" aria-label="Restart replay"><RotateCcw size={16} /></button><button disabled={!events.length || index === 0} onClick={() => { setRunning(false); setIndex(i => Math.max(0, i - 1)); }} title="Previous step" aria-label="Previous step"><ChevronLeft size={18} /></button><button className="run" disabled={loading} onClick={() => events.length ? setRunning(value => !value) : run()}>{loading ? <span className="spinner" /> : running ? <Pause size={15} /> : <Play size={15} />} {loading ? 'Tracing…' : events.length ? running ? 'Pause' : 'Resume' : 'Run code'}</button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(i => Math.min(events.length - 1, i + 1)); }} title="Next step" aria-label="Next step"><ChevronRight size={18} /></button><button disabled={!events.length || index >= events.length - 1} onClick={() => { setRunning(false); setIndex(events.length - 1); }} title="Jump to last step" aria-label="Jump to last step"><SkipForward size={16} /></button></div><label className="speed-control">Speed <input aria-label="Playback speed" type="range" min="80" max="1200" step="40" value={1200 - speed} onChange={e => setSpeed(1200 - Number(e.target.value))} /></label></div>)}<div className="visual-head-actions"><span className="step">{events.length ? `Step ${index + 1} / ${events.length}` : 'No trace yet'}</span><button className={`fullscreen-toggle-btn ${isFullscreen ? 'is-active' : ''}`} data-testid="fullscreen-toggle-btn" onClick={toggleFullscreen} title={isFullscreen ? 'Exit Full Screen (ESC)' : 'Full Screen'} aria-label={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}>{isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}<span>{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</span></button>{isFullscreen && (<button className="exit-esc-btn" data-testid="exit-esc-btn" onClick={exitFullscreen} title="Exit Full Screen (or press ESC)" aria-label="Exit Full Screen (ESC)"><kbd className="esc-badge">ESC</kbd><span>Exit</span></button>)}</div></div>
                 <div className="visual-canvas-container">
                   <PanZoomCanvas><VisualErrorBoundary key={event?.step ?? 0}><Visual event={event} animate={animate} source={code} /></VisualErrorBoundary></PanZoomCanvas>
                   <ComplexityOdometer events={events} currentIndex={index} />

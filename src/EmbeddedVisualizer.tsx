@@ -4,6 +4,8 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  Maximize2,
+  Minimize2,
   Pause,
   Play,
   RotateCcw,
@@ -34,9 +36,78 @@ export function EmbeddedVisualizer({ initialCode, title: _title }: EmbeddedVisua
   const [error, setError] = useState('');
   const [animate, setAnimate] = useState(true);
   const [showStates, setShowStates] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const visualizerRef = useRef<HTMLDivElement>(null);
   const codeEditor = useRef<any>(null);
   const decorations = useRef<string[]>([]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentFullscreen =
+        document.fullscreenElement === visualizerRef.current ||
+        (document as any).webkitFullscreenElement === visualizerRef.current ||
+        (document as any).mozFullScreenElement === visualizerRef.current ||
+        (document as any).msFullscreenElement === visualizerRef.current;
+      setIsFullscreen(Boolean(isCurrentFullscreen));
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
+
+  const enterFullscreen = async () => {
+    if (!visualizerRef.current) return;
+    try {
+      if (visualizerRef.current.requestFullscreen) {
+        await visualizerRef.current.requestFullscreen();
+      } else if ((visualizerRef.current as any).webkitRequestFullscreen) {
+        await (visualizerRef.current as any).webkitRequestFullscreen();
+      } else if ((visualizerRef.current as any).msRequestFullscreen) {
+        await (visualizerRef.current as any).msRequestFullscreen();
+      }
+    } catch (err) {
+      console.error('Fullscreen request failed:', err);
+    }
+  };
+
+  const exitFullscreen = async () => {
+    try {
+      if (
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      ) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        } else if ((document as any).msExitFullscreen) {
+          await (document as any).msExitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.error('Exit fullscreen failed:', err);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (isFullscreen || document.fullscreenElement === visualizerRef.current) {
+      exitFullscreen();
+    } else {
+      enterFullscreen();
+    }
+  };
 
   // Execute trace and optionally start playing immediately
   const runTrace = async (autoPlay: boolean = false): Promise<TraceEvent[]> => {
@@ -285,6 +356,19 @@ export function EmbeddedVisualizer({ initialCode, title: _title }: EmbeddedVisua
             onChange={(e) => setSpeed(1200 - Number(e.target.value))}
           />
         </label>
+
+        <div className="toolbar-visual-section">
+          <button
+            className={`fullscreen-toggle-btn ${isFullscreen ? 'is-active' : ''}`}
+            data-testid="toolbar-fullscreen-toggle"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? 'Exit Full Screen (ESC)' : 'Full Screen'}
+            aria-label={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+          >
+            {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            <span>{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Strict 50/50 Split Panes matching main Editor */}
@@ -320,16 +404,129 @@ export function EmbeddedVisualizer({ initialCode, title: _title }: EmbeddedVisua
           />
         </div>
 
-        {/* Right Side: Visualizer Canvas */}
-        <div className="visual-pane embedded-visual-pane">
-          <div className="visual-head">
-            <div>
+        {/* Right Side: Visualizer Canvas (Target Fullscreen Container Wrapper) */}
+        <div
+          ref={visualizerRef}
+          className={`visual-pane embedded-visual-pane ${isFullscreen ? 'is-fullscreen bg-slate-950' : ''}`}
+          data-testid="visualizer-fullscreen-wrapper"
+        >
+          <div className="visual-head" data-testid="visualizer-internal-toolbar">
+            <div className="visual-head-info">
               <span className="eyebrow">EXECUTION VISUALIZATION</span>
               <h2>{event?.structure || 'Ready to trace'}</h2>
             </div>
-            <span className="step">
-              {events.length ? `Step ${index + 1} / ${events.length}` : 'Click Run code to trace'}
-            </span>
+
+            {/* In Fullscreen mode: Full playback & speed controls visible in the top toolbar */}
+            {isFullscreen && (
+              <div className="fullscreen-playback-bar" data-testid="fullscreen-playback-bar">
+                <div className="run-controls">
+                  <button
+                    disabled={!events.length}
+                    onClick={() => {
+                      setRunning(false);
+                      setIndex(0);
+                    }}
+                    title="Restart replay"
+                    aria-label="Restart replay"
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                  <button
+                    disabled={!events.length || index === 0}
+                    onClick={() => {
+                      setRunning(false);
+                      setIndex((i) => Math.max(0, i - 1));
+                    }}
+                    title="Previous step"
+                    aria-label="Previous step"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    className="run"
+                    disabled={loading}
+                    onClick={handlePlayToggle}
+                    aria-label={events.length ? (running ? 'Pause' : 'Resume') : 'Run code'}
+                  >
+                    {loading ? (
+                      <span className="spinner" />
+                    ) : running ? (
+                      <Pause size={15} />
+                    ) : (
+                      <Play size={15} />
+                    )}{' '}
+                    {loading ? 'Tracing…' : events.length ? (running ? 'Pause' : 'Resume') : 'Run code'}
+                  </button>
+                  <button
+                    disabled={!events.length || index >= events.length - 1}
+                    onClick={() => {
+                      setRunning(false);
+                      setIndex((i) => Math.min(events.length - 1, i + 1));
+                    }}
+                    title="Next step"
+                    aria-label="Next step"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                  <button
+                    disabled={!events.length || index >= events.length - 1}
+                    onClick={() => {
+                      setRunning(false);
+                      setIndex(events.length - 1);
+                    }}
+                    title="Jump to last step"
+                    aria-label="Jump to last step"
+                  >
+                    <SkipForward size={16} />
+                  </button>
+                </div>
+
+                <label className="speed-control">
+                  Speed{' '}
+                  <input
+                    aria-label="Playback speed"
+                    type="range"
+                    min="80"
+                    max="1200"
+                    step="40"
+                    value={1200 - speed}
+                    onChange={(e) => setSpeed(1200 - Number(e.target.value))}
+                  />
+                </label>
+              </div>
+            )}
+
+            <div className="visual-head-actions">
+              <span className="step">
+                {events.length ? `Step ${index + 1} / ${events.length}` : 'Click Run code to trace'}
+              </span>
+
+              {/* Fullscreen toggle button on top right of internal toolbar */}
+              <button
+                className={`fullscreen-toggle-btn ${isFullscreen ? 'is-active' : ''}`}
+                data-testid="fullscreen-toggle-btn"
+                onClick={toggleFullscreen}
+                title={isFullscreen ? 'Exit Full Screen (ESC)' : 'Full Screen'}
+                aria-label={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+              >
+                {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                <span>{isFullscreen ? 'Exit Full Screen' : 'Full Screen'}</span>
+              </button>
+
+              {/* Dedicated visual Exit / ESC button when in fullscreen */}
+              {isFullscreen && (
+                <button
+                  className="exit-esc-btn"
+                  data-testid="exit-esc-btn"
+                  onClick={exitFullscreen}
+                  title="Exit Full Screen (or press ESC)"
+                  aria-label="Exit Full Screen (ESC)"
+                >
+                  <kbd className="esc-badge">ESC</kbd>
+                  <span>Exit</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="visual-canvas-container canvas">
