@@ -19,6 +19,8 @@ ChronoNode executes Python in the browser with Pyodide, captures meaningful runt
 - **Step complexity:** shows time and auxiliary-space estimates for the selected event, including measured `K` for supported collection operations, with safe `O(1)` fallbacks.
 - **High-contrast visualizers:** dynamic high-contrast node contrast, natural-width horizontal string visualizer without native scrollbars, and dedicated panels for textual step output.
 - **Safe snapshots:** bounds nested state, handles cycles, non-finite numbers, and objects with failing representations.
+- **Presentation Mode:** HTML5 Full-Screen API for the central `<ChronoEngine />`, preserving all timeline, zoom, odometer telemetry, and playback controls for classroom smart board use.
+- **Algorithm Detail Page Parity:** Edge-to-edge 40/60 split-pane workspace with KaTeX mathematical typography and responsive multi-line category chip navigation.
 - **Execution limits:** defaults to at most 1,000 events and a 5-second in-tracer deadline, with a worker timeout as an additional guard.
 - **Replay tools:** move through events, inspect before/after state, view variables and call frames, and jump through the trace.
 
