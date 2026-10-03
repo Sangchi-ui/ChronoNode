@@ -581,179 +581,8 @@
 }
 
 .lead-paragraph {
+  white-space: pre-line;
   margin: 0;
-}
-
-/* ==========================================================================
-   Markdown & KaTeX Typography Styling (prose prose-invert prose-green)
-   ========================================================================== */
-
-.prose,
-.markdown-content {
-  color: #cbd5e1;
-  font-size: 14.5px;
-  line-height: 1.7;
-}
-
-.prose h1,
-.markdown-content h1 {
-  font-size: 24px;
-  font-weight: 800;
-  color: #f8fafc;
-  margin: 24px 0 12px;
-  letter-spacing: -0.02em;
-}
-
-.prose h2,
-.markdown-content h2 {
-  font-size: 20px;
-  font-weight: 700;
-  color: #f1f5f9;
-  margin: 22px 0 10px;
-  letter-spacing: -0.01em;
-}
-
-.prose h3,
-.markdown-content h3 {
-  font-size: 16px;
-  font-weight: 700;
-  color: #e2e8f0;
-  margin: 18px 0 8px;
-  letter-spacing: -0.01em;
-}
-
-.prose h4,
-.markdown-content h4 {
-  font-size: 14px;
-  font-weight: 600;
-  color: #cbd5e1;
-  margin: 14px 0 6px;
-}
-
-.prose p,
-.markdown-content p {
-  margin: 0 0 12px;
-  line-height: 1.7;
-  color: #cbd5e1;
-}
-
-.prose p:last-child,
-.markdown-content p:last-child {
-  margin-bottom: 0;
-}
-
-.prose strong,
-.prose b,
-.markdown-content strong,
-.markdown-content b {
-  font-weight: 700;
-  color: #f8fafc;
-}
-
-.prose-green strong,
-.prose-green b,
-.prose-green li strong {
-  color: #d7f675;
-}
-
-.prose em,
-.markdown-content em {
-  font-style: italic;
-  color: #94a3b8;
-}
-
-.prose ul,
-.markdown-content ul {
-  list-style-type: disc;
-  padding-left: 22px;
-  margin: 10px 0 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.prose ol,
-.markdown-content ol {
-  list-style-type: decimal;
-  padding-left: 22px;
-  margin: 10px 0 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.prose li,
-.markdown-content li {
-  line-height: 1.6;
-  color: #cbd5e1;
-}
-
-.prose li p,
-.markdown-content li p {
-  margin: 0;
-  display: inline;
-}
-
-.prose code,
-.markdown-content code {
-  background: #141d29;
-  border: 1px solid #233144;
-  color: #38bdf8;
-  font: 12.5px 'DM Mono', monospace;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.prose pre,
-.markdown-content pre {
-  background: #0f1520;
-  border: 1px solid #222f42;
-  border-radius: 8px;
-  padding: 14px 16px;
-  overflow-x: auto;
-  margin: 14px 0;
-}
-
-.prose pre code,
-.markdown-content pre code {
-  background: transparent;
-  border: none;
-  padding: 0;
-  color: #e2e8f0;
-}
-
-.prose blockquote,
-.markdown-content blockquote {
-  border-left: 3px solid #c4f34a;
-  background: #131c18;
-  padding: 10px 16px;
-  border-radius: 0 6px 6px 0;
-  margin: 14px 0;
-  color: #d1fae5;
-}
-
-/* KaTeX Math Typography Styling */
-.katex {
-  font-size: 1.05em;
-  color: #c4f34a;
-}
-
-.katex-display {
-  margin: 12px 0 !important;
-  padding: 8px 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-.katex .mord.mathnormal {
-  color: #93c5fd;
-}
-
-.step-explanation .prose p,
-.step-text .prose p,
-.hero-subtitle .prose p,
-.walkthrough-summary .prose p {
-  margin-bottom: 0;
 }
 
 .analogy-callout {
@@ -1100,20 +929,12 @@
    Edge-to-Edge Execution Environment & Strict 50/50 Split Visualizer
    ========================================================================== */
 
-html, body, #root {
-  margin: 0;
-  padding: 0;
+.execution-environment-section {
   width: 100%;
-  min-height: 100vh;
-}
-
-.execution-environment-section,
-.execution-section {
-  width: 100%;
+  max-width: 100vw;
   background: #090e17;
-  border-top: 1px solid #1e293b;
-  padding: 0;
-  margin: 0;
+  border-top: 1px solid #1e2a3c;
+  padding: 48px 0 64px 0;
   box-sizing: border-box;
 }
 
@@ -1156,10 +977,143 @@ html, body, #root {
   height: 58px;
   background: #141a24;
   border-bottom: 1px solid #252c38;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+}
+
+.embedded-workspace .reset-code-btn {
+  background: #192230;
+  border: 1px solid #2b3a4f;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.embedded-workspace .reset-code-btn:hover {
+  background: #253347;
+  color: #f1f5f9;
+}
+
+/* Strict 50/50 Split-Pane Workspace: Left Code Editor / Right Visualizer matching main Editor */
+.embedded-split-workspace {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  padding: 0;
+  min-height: 580px;
+  height: 640px;
   width: 100%;
+  border-bottom: 1px solid #252c38;
+}
+
+.embedded-panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 580px;
+  height: 640px;
+  width: 100%;
+  border-bottom: 1px solid #252c38;
+}
+
+@media (max-width: 1024px) {
+
+  .embedded-split-workspace,
+  .embedded-panes {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+}
+
+.embedded-code-pane,
+.embedded-panes .editor-pane {
+  border-right: 1px solid #202b3c;
+  display: flex;
+  flex-direction: column;
+  background: #111722;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.embedded-visual-pane,
+.embedded-panes .visual-pane {
+  display: flex;
+  flex-direction: column;
+  background: #0e131b;
+  overflow: hidden;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Centered Node Legend directly below Canvas matching main Editor */
+.embedded-workspace .legend {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  padding: 4px 12px 10px;
+  color: #7f8a9d;
+  font: 10px 'DM Mono', monospace;
+}
+
+/* Full-Width 3-Column Bottom Panel */
+.embedded-workspace .bottom {
+  display: grid;
+  grid-template-columns: 1.3fr 1.1fr 1fr;
+  gap: 20px;
+  padding: 20px 24px 28px;
+  width: 100%;
+  box-sizing: border-box;
+  background: #0c1018;
+}
+
+@media (max-width: 1100px) {
+  .embedded-workspace .bottom {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .embedded-workspace .event-meta {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .embedded-workspace .bottom {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+}
+
+/* Adaptive 1D Array Pointer Tracking */
+.array-cell {
+  position: relative;
+}
+
+.cell-pointer-badge {
+  position: absolute;
+  top: -11px;
+  background: #102338;
+  border: 1px solid #38bdf8;
+  color: #7dd3fc;
+  font: 700 9px 'DM Mono', monospace;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  z-index: 5;
+  text-transform: uppercase;
+}
+
+.array-cell.has-pointer {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1.5px rgba(56, 189, 248, 0.45);
 }
 
 .embedded-workspace .toolbar-editor-section {
@@ -1211,6 +1165,7 @@ html, body, #root {
 }
 
 @media (max-width: 1023px) {
+
   .embedded-split-workspace,
   .embedded-panes {
     grid-template-columns: 1fr;
@@ -1298,6 +1253,7 @@ html, body, #root {
   .embedded-workspace .bottom {
     grid-template-columns: 1fr 1fr;
   }
+
   .embedded-workspace .event-meta {
     grid-column: 1 / -1;
   }
@@ -1334,4 +1290,171 @@ html, body, #root {
 .array-cell.has-pointer {
   border-color: #38bdf8;
   box-shadow: 0 0 0 1.5px rgba(56, 189, 248, 0.45);
+}
+
+/* ==========================================================================
+   ChronoEngine - SORTING_BARS Visual Mode & State Styling
+   ========================================================================== */
+
+.chrono-engine {
+  width: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.sorting-bars-container {
+  min-height: 240px;
+  background: #090e17;
+  border: 1px solid #1a2536;
+  border-radius: 8px;
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.sorting-bars-viewport {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  box-sizing: border-box;
+  min-height: 200px;
+}
+
+.sorting-bar-wrapper {
+  flex: 1;
+  max-width: 60px;
+  min-width: 24px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+}
+
+.sorting-bar {
+  width: 100%;
+  background: #1e293b;
+  border: 1.5px solid #334155;
+  border-radius: 4px 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  padding-top: 6px;
+  transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  box-sizing: border-box;
+  position: relative;
+  cursor: default;
+}
+
+.sorting-bar:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.15);
+}
+
+.sorting-bar-value {
+  font: 700 11px 'DM Mono', monospace;
+  color: #94a3b8;
+  user-select: none;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.sorting-bar-index {
+  font: 600 10.5px 'DM Mono', monospace;
+  color: #64748b;
+  user-select: none;
+}
+
+/* Active Highlight States (Neon Green Glow) */
+.sorting-bar.is-active {
+  background: #1d3319;
+  border-color: #c4f34a !important;
+  box-shadow: 0 0 16px rgba(196, 243, 74, 0.4), inset 0 0 8px rgba(196, 243, 74, 0.2);
+  transform: scaleY(1.02);
+  z-index: 2;
+}
+
+.sorting-bar.is-active .sorting-bar-value {
+  color: #c4f34a;
+  font-weight: 800;
+}
+
+.sorting-bar.bar-active-compare {
+  background: #1e2d1d;
+  border-color: #c4f34a !important;
+  box-shadow: 0 0 14px rgba(196, 243, 74, 0.35);
+}
+
+.sorting-bar.bar-active-swap {
+  background: #2a3314;
+  border-color: #eab308 !important;
+  box-shadow: 0 0 18px rgba(234, 179, 8, 0.45);
+}
+
+.sorting-bar.bar-active-swap .sorting-bar-value {
+  color: #fde047;
+}
+
+.sorting-bar.bar-active-overwrite {
+  background: #142838;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
+}
+
+.sorting-bar.bar-active-overwrite .sorting-bar-value {
+  color: #38bdf8;
+}
+
+/* Sorted State Locking (Solid green border for locked boundary) */
+.sorting-bar.is-sorted {
+  background: #13271a;
+  border: 2px solid #22c55e !important;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.25);
+}
+
+.sorting-bar.is-sorted .sorting-bar-value {
+  color: #4ade80;
+}
+
+.sorting-bar.is-sorted.is-active {
+  border-color: #c4f34a !important;
+  box-shadow: 0 0 18px rgba(196, 243, 74, 0.5);
+}
+
+.array-cell.is-sorted-cell,
+.array-cell.is-sorted {
+  border-color: #22c55e !important;
+  background: #12281b !important;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.25);
+}
+
+.sorting-empty-notice {
+  font: 600 13px 'DM Mono', monospace;
+  color: #64748b;
+  padding: 32px 0;
+  text-align: center;
+  width: 100%;
+}
+
+.sorting-step-description {
+  margin-top: 12px;
+  padding: 8px 14px;
+  background: #0f1622;
+  border: 1px solid #1f2c3d;
+  border-radius: 6px;
+  font: 500 12.5px 'DM Mono', monospace;
+  color: #94a3b8;
+  text-align: center;
 }

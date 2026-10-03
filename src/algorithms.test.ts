@@ -5,7 +5,6 @@ let algorithmsCss = '';
 let algorithmsPanelTsx = '';
 let miniGraphicTsx = '';
 let detailPageTsx = '';
-let layoutTsx = '';
 let embeddedVisualizerTsx = '';
 
 beforeAll(async () => {
@@ -15,7 +14,6 @@ beforeAll(async () => {
   algorithmsPanelTsx = fs.readFileSync(new URL('./AlgorithmsPanel.tsx', import.meta.url), 'utf-8');
   miniGraphicTsx = fs.readFileSync(new URL('./MiniGraphic.tsx', import.meta.url), 'utf-8');
   detailPageTsx = fs.readFileSync(new URL('./AlgorithmDetailPage.tsx', import.meta.url), 'utf-8');
-  layoutTsx = fs.readFileSync(new URL('./AlgorithmPageLayout.tsx', import.meta.url), 'utf-8');
   embeddedVisualizerTsx = fs.readFileSync(new URL('./EmbeddedVisualizer.tsx', import.meta.url), 'utf-8');
 });
 
@@ -284,80 +282,56 @@ describe('Algorithms Registry', () => {
   /* ------------------------------------------------------------------------
      Phase 1: Educational Content Integration & Edge-to-Edge Execution Layout
      ------------------------------------------------------------------------ */
-  /* ------------------------------------------------------------------------
-     Edge-to-Edge Algorithm Page Layout (Single Source of Truth)
-     ------------------------------------------------------------------------ */
-  describe('Single Source of Truth & Edge-to-Edge Layout Overhaul', () => {
-    describe('1. Structural Layout & Edge-to-Edge Execution Section', () => {
-      it('uses one shared layout file (AlgorithmPageLayout.tsx) controlling all algorithm pages', () => {
-        expect(layoutTsx).toContain('export function AlgorithmPageLayout');
-        expect(layoutTsx).toContain('export function TopBar');
-        expect(layoutTsx).toContain('export function ReadingSection');
-        expect(layoutTsx).toContain('export function ExecutionSection');
-        expect(detailPageTsx).toContain('AlgorithmPageLayout');
+  describe('Phase 1: Dynamic Detail Page Layout & Exhaustive Searching Content', () => {
+    describe('1. Structural Layout Overhaul', () => {
+      it('uses wide reading container (max-w-7xl mx-auto px-8) for top educational content', () => {
+        expect(detailPageTsx).toContain('detail-content-container max-w-7xl mx-auto px-8 w-full');
+        expect(algorithmsCss).toMatch(/\.detail-content-container\s*\{[^}]*max-width:\s*80rem;/);
+        expect(algorithmsCss).toMatch(/\.detail-content-container\s*\{[^}]*width:\s*100%;/);
       });
 
-      it('page structure has direct children under root with no horizontal padding on root', () => {
-        expect(layoutTsx).toMatch(/<main\s+className=["']w-full min-h-screen bg-slate-950["']>/);
-        expect(layoutTsx).toContain('<TopBar');
-        expect(layoutTsx).toContain('<ReadingSection');
-        expect(layoutTsx).toContain('<ExecutionSection');
+      it('breaks bottom execution environment out of container to span 100% edge-to-edge', () => {
+        expect(detailPageTsx).toContain('className="execution-environment-section w-full max-w-none"');
+        expect(detailPageTsx).toContain('className="embedded-visualizer-outer w-full max-w-none"');
+        expect(algorithmsCss).toMatch(/\.execution-environment-section\s*\{[^}]*width:\s*100%;/);
+        expect(algorithmsCss).toMatch(/\.execution-environment-section\s*\{[^}]*max-width:\s*100vw;/);
+        expect(algorithmsCss).toMatch(/\.embedded-visualizer-container\s*\{[^}]*border-radius:\s*0;/);
       });
 
-      it('reading section uses the wider container (max-w-[1600px]) and responsive grids', () => {
-        expect(layoutTsx).toContain('w-full max-w-[1600px] mx-auto px-6 lg:px-10');
-        // Side-by-side on xl: Explanation + Complexity
-        expect(layoutTsx).toContain('grid grid-cols-1 xl:grid-cols-2 gap-8 items-start w-full');
-        // 2-column on md+: Walkthrough steps
-        expect(layoutTsx).toContain('grid grid-cols-1 md:grid-cols-2 gap-4 w-full');
+      it('enforces a strict 50/50 split-pane layout for code editor and visualizer canvas', () => {
+        expect(algorithmsCss).toMatch(/\.embedded-split-workspace\s*\{[^}]*grid-template-columns:\s*1fr\s+1fr;/);
+        expect(embeddedVisualizerTsx).toContain('embedded-split-workspace');
+        expect(embeddedVisualizerTsx).toContain('embedded-code-pane');
+        expect(embeddedVisualizerTsx).toContain('embedded-visual-pane');
       });
 
-      it('execution section touches both screen edges with no w-screen, no max-w, no horizontal padding', () => {
-        expect(layoutTsx).toContain('className="execution-section execution-environment-section w-full border-t border-slate-800"');
-        expect(layoutTsx).not.toContain('w-screen');
-        expect(algorithmsCss).toMatch(/html,\s*body,\s*#root\s*\{[^}]*margin:\s*0;/);
-        expect(algorithmsCss).toMatch(/\.execution-environment-section,\s*\.execution-section\s*\{[^}]*width:\s*100%;/);
-        expect(algorithmsCss).not.toMatch(/\.execution-environment-section\s*\{[^}]*max-width:\s*100vw;/);
-      });
+      it('unifies visualizer layout to be a 1:1 pixel-perfect match with the main Editor workspace', () => {
+        // 1. Toolbar standardization: strips out custom header, implements main editor toolbar
+        expect(embeddedVisualizerTsx).not.toContain('LIVE PLAYGROUND');
+        expect(embeddedVisualizerTsx).not.toContain('embedded-visualizer-header');
+        expect(embeddedVisualizerTsx).toContain('className="toolbar"');
+        expect(embeddedVisualizerTsx).toContain('className="run-controls"');
+        expect(embeddedVisualizerTsx).toContain('className="speed-control"');
+        expect(embeddedVisualizerTsx).toContain('className="reset-code-btn"');
 
-      it('enforces exact 50/50 split on lg+ and stacked below lg', () => {
-        expect(embeddedVisualizerTsx).toContain('grid grid-cols-1 lg:grid-cols-2 w-full min-h-[80vh] lg:h-[calc(100vh-4rem)]');
-        expect(embeddedVisualizerTsx).toContain('className="editor-pane embedded-code-pane h-full w-full min-w-0 overflow-auto"');
-        expect(embeddedVisualizerTsx).toContain('className="visual-pane embedded-visual-pane h-full w-full min-w-0 overflow-auto"');
-        expect(embeddedVisualizerTsx).toContain('<ChronoEngine');
-      });
-
-      it('floating odometer card is positioned at absolute bottom-3 right-3 z-20 within relative viewport', () => {
-        expect(embeddedVisualizerTsx).toContain('visual-canvas-container canvas relative overflow-hidden');
-        expect(embeddedVisualizerTsx).toContain('className="absolute bottom-3 right-3 z-20"');
+        // 2. Panes and canvas alignment
+        expect(embeddedVisualizerTsx).toContain('className="panes embedded-panes embedded-split-workspace"');
+        expect(embeddedVisualizerTsx).toContain('className="visual-canvas-container canvas"');
         expect(embeddedVisualizerTsx).toContain('<ComplexityOdometer events={events} currentIndex={index} />');
-      });
 
-      it('verifies layout rules and CSS across widths 360, 768, 1280, 1920 and 2560 px: no horizontal page scrollbar, no empty gutters beside execution section', () => {
-        // html, body, #root: margin 0, no horizontal padding
-        expect(algorithmsCss).toMatch(/html,\s*body,\s*#root\s*\{[^}]*margin:\s*0;/);
-        expect(algorithmsCss).toMatch(/html,\s*body,\s*#root\s*\{[^}]*padding:\s*0;/);
-        // Execution section: w-full border-t border-slate-800, no w-screen, no max-w, no gutters
-        expect(layoutTsx).toContain('className="execution-section execution-environment-section w-full border-t border-slate-800"');
-        expect(layoutTsx).not.toContain('w-screen');
-        expect(algorithmsCss).not.toMatch(/\.execution-section[^{]*\{[^}]*w-screen/);
-        expect(algorithmsCss).not.toMatch(/\.execution-section[^{]*\{[^}]*max-width/);
-        expect(algorithmsCss).not.toMatch(/\.execution-environment-section[^{]*\{[^}]*max-width/);
-        // Reading section: w-full max-w-[1600px] mx-auto px-6 lg:px-10
-        expect(layoutTsx).toContain('w-full max-w-[1600px] mx-auto px-6 lg:px-10');
-        // Split is 50/50 on lg+ (>= 1024px) including 1280, 1920, 2560 px; stacked below lg (< 1024px) including 360, 768 px
-        expect(embeddedVisualizerTsx).toContain('grid grid-cols-1 lg:grid-cols-2 w-full min-h-[80vh] lg:h-[calc(100vh-4rem)]');
-        // Overflow safety on panes with min-w-0
-        expect(embeddedVisualizerTsx).toContain('className="editor-pane embedded-code-pane h-full w-full min-w-0 overflow-auto"');
-        expect(embeddedVisualizerTsx).toContain('className="visual-pane embedded-visual-pane h-full w-full min-w-0 overflow-auto"');
-      });
+        // 3. Legend horizontally centered directly below canvas container
+        expect(embeddedVisualizerTsx).toContain('className="legend" aria-label="Visualization legend"');
+        expect(algorithmsCss).toMatch(/\.embedded-workspace\s+\.legend\s*\{[^}]*display:\s*flex;/);
+        expect(algorithmsCss).toMatch(/\.embedded-workspace\s+\.legend\s*\{[^}]*justify-content:\s*center;/);
 
-      it('adding a new algorithm entry requires zero layout or width classes in data schema', () => {
-        for (const algo of ALL_ALGORITHMS) {
-          expect(algo.name).not.toMatch(/\b(w-full|max-w|px-|grid|flex|h-)\b/);
-          expect(algo.category).not.toMatch(/\b(w-full|max-w|px-|grid|flex|h-)\b/);
-          expect(algo.id).not.toMatch(/\b(w-full|max-w|px-|grid|flex|h-)\b/);
-        }
+        // 4. Full-width 3-column bottom panel matching main workspace
+        expect(embeddedVisualizerTsx).toContain('className="bottom"');
+        expect(embeddedVisualizerTsx).toContain('VARIABLES ·');
+        expect(embeddedVisualizerTsx).toContain('className="bottom-section call-stack-section"');
+        expect(embeddedVisualizerTsx).toContain('CALL STACK');
+        expect(embeddedVisualizerTsx).toContain('className="bottom-section event-meta"');
+        expect(embeddedVisualizerTsx).toContain('SOURCE & OPERATION');
+        expect(embeddedVisualizerTsx).toContain('className="state-comparison"');
       });
     });
 
@@ -366,7 +340,7 @@ describe('Algorithms Registry', () => {
         expect(embeddedVisualizerTsx).toMatch(/import\s*\{\s*tracePython/);
         expect(embeddedVisualizerTsx).toContain('await tracePython(');
         expect(embeddedVisualizerTsx).toContain('<PanZoomCanvas>');
-        expect(embeddedVisualizerTsx).toContain('<Visual event={event');
+        expect(embeddedVisualizerTsx).toContain('<Visual event={event}');
         expect(embeddedVisualizerTsx).toContain('<ComplexityOdometer');
       });
     });
@@ -439,26 +413,6 @@ describe('Algorithms Registry', () => {
           });
         });
       }
-    });
-
-    describe('4. Client-side Markdown & LaTeX Math Rendering (KaTeX Integration)', () => {
-      it('imports ReactMarkdown, remarkMath, rehypeKatex and katex stylesheet', () => {
-        expect(layoutTsx).toContain("import ReactMarkdown from 'react-markdown';");
-        expect(layoutTsx).toContain("import remarkMath from 'remark-math';");
-        expect(layoutTsx).toContain("import rehypeKatex from 'rehype-katex';");
-        expect(layoutTsx).toContain("import 'katex/dist/katex.min.css';");
-      });
-
-      it('configures ReactMarkdown with remarkMath and rehypeKatex plugins across content sections', () => {
-        expect(layoutTsx).toMatch(/<ReactMarkdown\s+remarkPlugins=\{\[remarkMath\]\}\s+rehypePlugins=\{\[rehypeKatex\]\}>/);
-        expect(layoutTsx).toContain('prose prose-invert prose-green max-w-none');
-      });
-
-      it('includes dark-mode typography styling for prose and KaTeX math in algorithms.css', () => {
-        expect(algorithmsCss).toMatch(/\.prose,\s*\.markdown-content\s*\{/);
-        expect(algorithmsCss).toMatch(/\.katex\s*\{/);
-        expect(algorithmsCss).toMatch(/\.katex-display\s*\{/);
-      });
     });
   });
 });
