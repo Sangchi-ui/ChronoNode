@@ -385,6 +385,60 @@ describe('ChronoNode Sorting Algorithms: Rigorous Test & Visual Verification Sui
         }
       }
     });
+
+    it('Merge Sort Final State Resolution: final step writes fully sorted elements into single contiguous 1D array locked with is-sorted', () => {
+      const input = [38, 27, 43, 3, 9, 82, 10];
+      const { steps } = collectSortingSteps(mergeSortGenerator(input));
+      const finalStep = steps[steps.length - 1];
+
+      // Final step must have all indices in sortedIndices
+      expect(finalStep.sortedIndices.length).toBe(input.length);
+      expect(finalStep.subArrays).toBeUndefined();
+      expect(finalStep.array).toEqual([...input].sort((a, b) => a - b));
+
+      const htmlFinal = renderToStaticMarkup(
+        React.createElement(ChronoEngine, {
+          algorithm: 'merge-sort',
+          step: finalStep,
+        })
+      );
+
+      // Must resolve to SORTING_BARS (1D contiguous array) on final step
+      expect(htmlFinal).toContain('data-mode="SORTING_BARS"');
+      expect(htmlFinal).not.toContain('data-testid="divide-conquer-subarrays"');
+
+      // Every element must have .is-sorted
+      for (let i = 0; i < input.length; i++) {
+        const barTag = getBarTag(htmlFinal, i);
+        expect(barTag).toContain('is-sorted');
+        expect(barTag).toContain('array-cell');
+      }
+    });
+
+    it('Global Unified Element Sizing: ChronoEngine renders large .array-cell blocks directly on canvas without dark bounding boxes', () => {
+      const algorithms: SortingAlgorithmId[] = ['bubble-sort', 'selection-sort', 'insertion-sort', 'quick-sort', 'heap-sort'];
+      const sample = [5, 2, 8, 1, 9];
+
+      for (const algo of algorithms) {
+        const gen = sortingGenerators[algo](sample);
+        const { steps } = collectSortingSteps(gen);
+        const midStep = steps[Math.floor(steps.length / 2)];
+
+        const html = renderToStaticMarkup(
+          React.createElement(ChronoEngine, {
+            algorithm: algo,
+            step: midStep,
+          })
+        );
+
+        // Every array element must be an .array-cell
+        for (let i = 0; i < sample.length; i++) {
+          const barTag = getBarTag(html, i);
+          expect(barTag).toContain('array-cell');
+          expect(barTag).toContain('sorting-bar');
+        }
+      }
+    });
   });
 
   /* =========================================================================

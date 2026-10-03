@@ -350,6 +350,10 @@ export function* mergeSortGenerator(arrInput: number[]): Generator<SortingStep, 
         mergedTargetIndex: start + k,
         activeLevel: depth,
         partitionRange: [start, end],
+        subArrays: [
+          { id: `L-${start}-${mid}`, start, end: mid, values: arr.slice(start, mid + 1), level: depth, phase: 'merge', active: true },
+          { id: `R-${mid + 1}-${end}`, start: mid + 1, end, values: arr.slice(mid + 1, end + 1), level: depth, phase: 'merge', active: true },
+        ],
       };
     }
   }
@@ -361,7 +365,12 @@ export function* mergeSortGenerator(arrInput: number[]): Generator<SortingStep, 
     indices: [],
     array: [...arr],
     sortedIndices: Array.from(sorted),
-    description: 'Merge Sort complete',
+    subArrays: undefined,
+    activeLevel: undefined,
+    leftPointer: undefined,
+    rightPointer: undefined,
+    mergedTargetIndex: undefined,
+    description: 'Merge Sort complete: all elements locked in sorted order',
   };
   return arr;
 }

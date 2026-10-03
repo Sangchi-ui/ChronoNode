@@ -26,9 +26,10 @@ export interface ChronoEngineProps {
 /**
  * ChronoEngine: Advanced Visual rendering engine for algorithm execution.
  * Pedagogically specialized for live classroom lectures:
- * 1. DIVIDE_AND_CONQUER (Merge Sort): Physically separates sub-arrays with visual gaps and pointers.
- * 2. PARTITION_SWAP (Quick Sort): Highlights pivot in neon purple and frames the active partition boundary.
- * 3. STANDARD_BAR_CHART / 1D_ARRAY (Bubble, Insertion, Selection): Sequential boundary locking and comparisons.
+ * - Direct rendering on the primary dotted-grid canvas with zero nested dark card bounding boxes.
+ * - Globally unified large element sizing (.array-cell w-14 h-16 / w-14 h-14) matching Linear Search.
+ * - Distinct structural logic for Divide & Conquer (Merge Sort) and Partition Swap (Quick Sort).
+ * - Full resolution of completed sorting runs to a single contiguous 1D array locked in solid green.
  */
 export function ChronoEngine({
   mode,
@@ -38,10 +39,7 @@ export function ChronoEngine({
   activeIndices: propActiveIndices,
   actionType: propActionType,
   sortedIndices: propSortedIndices,
-  maxValue: propMax,
-  height = 340,
-  showValues = true,
-  showIndices = true,
+  height,
 }: ChronoEngineProps) {
   // Extract values from step if provided, or fallback to direct props
   const array = step ? step.array : (propArray || []);
@@ -49,59 +47,27 @@ export function ChronoEngine({
   const actionType = step ? step.type : (propActionType || 'COMPARE');
   const sortedIndices = new Set(step ? step.sortedIndices : (propSortedIndices || []));
 
-  const maxVal = propMax ?? Math.max(...array, 1);
-  const minVal = Math.min(...array, 0);
-  const range = Math.max(maxVal - minVal, 1);
+  const isFullySorted = array.length > 0 && sortedIndices.size === array.length;
+  const hasSubArrays = Boolean(step?.subArrays && step.subArrays.length > 0);
 
   // Auto-resolve visual mode based on algorithm or step properties
   let effectiveMode: VisualMode = mode || 'SORTING_BARS';
-  if (algorithm === 'merge-sort' || (!mode && step?.subArrays && step.subArrays.length > 0)) {
+  if (isFullySorted) {
+    // When the whole array is sorted, resolve strictly to single contiguous 1D array on main canvas
+    effectiveMode = 'SORTING_BARS';
+  } else if (mode === 'DIVIDE_AND_CONQUER' || algorithm === 'merge-sort' || (!mode && hasSubArrays)) {
     effectiveMode = 'DIVIDE_AND_CONQUER';
   } else if (
     algorithm === 'quick-sort' ||
     (!mode && (step?.pivotIndex !== undefined || step?.partitionRange !== undefined))
   ) {
     effectiveMode = 'PARTITION_SWAP';
-  } else if (mode === 'STANDARD_BAR_CHART' || mode === '1D_ARRAY') {
+  } else if (mode === 'STANDARD_BAR_CHART' || mode === '1D_ARRAY' || mode === 'ARRAY_CELLS') {
     effectiveMode = 'SORTING_BARS';
   }
 
   /* =========================================================================
-     Mode 1: ARRAY_CELLS Mode
-     ========================================================================= */
-  if (effectiveMode === 'ARRAY_CELLS') {
-    return (
-      <div className="chrono-engine array-cells-container" data-testid="chrono-engine-cells">
-        {array.map((val, idx) => {
-          const isActive = activeIndices.has(idx);
-          const isSorted = sortedIndices.has(idx);
-          return (
-            <div
-              key={idx}
-              data-testid={`cell-${idx}`}
-              data-value={val}
-              data-active={isActive}
-              data-sorted={isSorted}
-              className={`array-cell ${
-                isActive ? (actionType === 'SWAP' ? 'is-moved is-active' : 'is-compared is-active') : ''
-              } ${isSorted ? 'is-sorted is-sorted-cell' : ''}`}
-            >
-              <small>{idx}</small>
-              <b>{val}</b>
-            </div>
-          );
-        })}
-        {array.length === 0 && (
-          <div className="sorting-empty-notice" data-testid="sorting-empty">
-            Empty array (N = 0)
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  /* =========================================================================
-     Mode 2: DIVIDE_AND_CONQUER Mode (Specifically for Merge Sort)
+     Mode 1: DIVIDE_AND_CONQUER Mode (Specifically for active Merge Sort steps)
      ========================================================================= */
   if (effectiveMode === 'DIVIDE_AND_CONQUER') {
     const subArrays: SubArrayBlock[] = step?.subArrays || [];
@@ -110,12 +76,12 @@ export function ChronoEngine({
 
     return (
       <div
-        className="chrono-engine divide-conquer-container"
+        className="chrono-engine array-view divide-conquer-container"
         data-testid="chrono-engine"
         data-mode="DIVIDE_AND_CONQUER"
         style={{ minHeight: typeof height === 'number' ? `${height}px` : height }}
       >
-        {/* Divide & Conquer Phase Header */}
+        {/* Subtle Divide & Conquer Header (no dark card box!) */}
         <div className="divide-conquer-header" data-testid="divide-conquer-header">
           <div className="phase-pill">
             <span className="phase-tag">DIVIDE & CONQUER</span>
@@ -128,62 +94,56 @@ export function ChronoEngine({
           )}
         </div>
 
-        {/* Separated Sub-Array Blocks */}
-        {subArrays.length > 0 ? (
-          <div className="divide-conquer-subarrays" data-testid="divide-conquer-subarrays">
-            {subArrays.map((sub, sIdx) => {
-              const isLeft = sIdx === 0;
-              const pointerIdx = isLeft ? step?.leftPointer : step?.rightPointer;
+        {/* Separated Sub-Array Blocks floating directly on dotted canvas */}
+        <div className="divide-conquer-subarrays" data-testid="divide-conquer-subarrays">
+          {subArrays.map((sub, sIdx) => {
+            const isLeft = sIdx === 0;
+            const pointerIdx = isLeft ? step?.leftPointer : step?.rightPointer;
 
-              return (
-                <div
-                  key={sub.id || sIdx}
-                  className={`sub-array-card ${isLeft ? 'sub-array-left' : 'sub-array-right'} ${
-                    sub.active ? 'is-active-sub' : ''
-                  }`}
-                  data-testid={`subarray-${isLeft ? 'left' : 'right'}`}
-                >
-                  <div className="sub-array-title">
-                    <span>{isLeft ? 'LEFT SUB-ARRAY' : 'RIGHT SUB-ARRAY'}</span>
-                    <small>indices [{sub.start}..{sub.end}]</small>
-                  </div>
-                  <div className="sub-array-elements">
-                    {sub.values.map((v, localIdx) => {
-                      const globalIdx = sub.start + localIdx;
-                      const hasPointer = pointerIdx === globalIdx;
-                      const isCompared = activeIndices.has(globalIdx);
-
-                      return (
-                        <div
-                          key={globalIdx}
-                          className={`sub-cell ${hasPointer ? 'has-pointer' : ''} ${
-                            isCompared ? 'is-active' : ''
-                          }`}
-                          data-testid={`sub-cell-${globalIdx}`}
-                          data-value={v}
-                        >
-                          {hasPointer && (
-                            <span className="sub-pointer-tag">
-                              {isLeft ? 'L' : 'R'}
-                            </span>
-                          )}
-                          <span className="sub-val">{v}</span>
-                          <span className="sub-idx">{globalIdx}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+            return (
+              <div
+                key={sub.id || sIdx}
+                className={`sub-array-card ${isLeft ? 'sub-array-left' : 'sub-array-right'} ${
+                  sub.active ? 'is-active-sub' : ''
+                }`}
+                data-testid={`subarray-${isLeft ? 'left' : 'right'}`}
+              >
+                <div className="sub-array-title">
+                  <span>{isLeft ? 'LEFT SUB-ARRAY' : 'RIGHT SUB-ARRAY'}</span>
+                  <small>indices [{sub.start}..{sub.end}]</small>
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="divide-conquer-subarrays placeholder">
-            <span className="muted">Sub-arrays partition recursively during Divide phase</span>
-          </div>
-        )}
+                <div className="sub-array-elements">
+                  {sub.values.map((v, localIdx) => {
+                    const globalIdx = sub.start + localIdx;
+                    const hasPointer = pointerIdx === globalIdx;
+                    const isCompared = activeIndices.has(globalIdx);
 
-        {/* Merged Target / Full Array View */}
+                    return (
+                      <div
+                        key={globalIdx}
+                        className={`array-cell sub-cell ${hasPointer ? 'has-pointer' : ''} ${
+                          isCompared ? 'is-active is-compared' : ''
+                        }`}
+                        data-testid={`sub-cell-${globalIdx}`}
+                        data-value={v}
+                      >
+                        {hasPointer && (
+                          <span className="sub-pointer-tag">
+                            {isLeft ? 'L' : 'R'}
+                          </span>
+                        )}
+                        <small className="sub-idx">{globalIdx}</small>
+                        <b className="sub-val">{v}</b>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Full / Destination Array View floating directly on canvas */}
         <div className="divide-conquer-merged-section">
           <div className="merged-label">
             <span>FULL ARRAY STATE {isMerging ? '(MERGING INTO TARGET)' : ''}</span>
@@ -193,7 +153,6 @@ export function ChronoEngine({
               const isActive = activeIndices.has(idx);
               const isSorted = sortedIndices.has(idx);
               const isTarget = step?.mergedTargetIndex === idx;
-              const pct = Math.max(14, Math.min(94, ((val - minVal) / range) * 80 + 14));
 
               return (
                 <div key={idx} className="sorting-bar-wrapper" data-testid={`sorting-bar-wrapper-${idx}`}>
@@ -204,16 +163,15 @@ export function ChronoEngine({
                     data-active={isActive}
                     data-sorted={isSorted}
                     data-action={isActive ? actionType : undefined}
-                    className={`sorting-bar ${isActive ? 'is-active bar-active-compare' : ''} ${
-                      isSorted ? 'is-sorted' : ''
+                    className={`array-cell sorting-bar ${isActive ? 'is-active bar-active-compare is-compared' : ''} ${
+                      isSorted ? 'is-sorted is-sorted-cell' : ''
                     } ${isTarget ? 'is-target-merged' : ''}`}
-                    style={{ height: `${pct}%` }}
                     title={`Index: ${idx}, Value: ${val}${isSorted ? ' (Sorted)' : ''}`}
                   >
                     {isTarget && <span className="target-merge-badge">MERGE</span>}
-                    {showValues && <span className="sorting-bar-value">{val}</span>}
+                    <small className="sorting-bar-index">{idx}</small>
+                    <b className="sorting-bar-value">{val}</b>
                   </div>
-                  {showIndices && <span className="sorting-bar-index">{idx}</span>}
                 </div>
               );
             })}
@@ -230,7 +188,7 @@ export function ChronoEngine({
   }
 
   /* =========================================================================
-     Mode 3: PARTITION_SWAP Mode (Specifically for Quick Sort)
+     Mode 2: PARTITION_SWAP Mode (Specifically for Quick Sort steps)
      ========================================================================= */
   if (effectiveMode === 'PARTITION_SWAP') {
     const partitionRange = step?.partitionRange || [0, array.length - 1];
@@ -240,12 +198,12 @@ export function ChronoEngine({
 
     return (
       <div
-        className="chrono-engine partition-swap-container"
+        className="chrono-engine array-view partition-swap-container"
         data-testid="chrono-engine"
         data-mode="PARTITION_SWAP"
         style={{ minHeight: typeof height === 'number' ? `${height}px` : height }}
       >
-        {/* Quick Sort Partition Telemetry Bar */}
+        {/* Subtle Partition Telemetry Bar (no dark card wrapper!) */}
         <div className="partition-header" data-testid="partition-header">
           <div className="partition-badge">
             <span className="partition-tag">PARTITION SWAP</span>
@@ -261,6 +219,7 @@ export function ChronoEngine({
           )}
         </div>
 
+        {/* Free-floating array blocks directly on primary dotted canvas */}
         <div className="sorting-bars-viewport" role="region" aria-label="Quick Sort partition viewport">
           {array.map((val, idx) => {
             const isPivot = pivotIndex === idx;
@@ -270,12 +229,10 @@ export function ChronoEngine({
             const isActive = activeIndices.has(idx);
             const isSorted = sortedIndices.has(idx);
 
-            const pct = Math.max(12, Math.min(94, ((val - minVal) / range) * 82 + 12));
-
             let activeClass = '';
             if (isActive) {
-              if (actionType === 'SWAP') activeClass = 'bar-active-swap';
-              else if (actionType === 'COMPARE') activeClass = 'bar-active-compare';
+              if (actionType === 'SWAP') activeClass = 'bar-active-swap is-moved';
+              else if (actionType === 'COMPARE') activeClass = 'bar-active-compare is-compared';
               else activeClass = 'bar-active-overwrite';
             }
 
@@ -290,20 +247,19 @@ export function ChronoEngine({
                   data-pivot={isPivot}
                   data-in-partition={isInPartition}
                   data-action={isActive ? actionType : undefined}
-                  className={`sorting-bar ${isActive ? 'is-active ' + activeClass : ''} ${
-                    isSorted ? 'is-sorted' : ''
+                  className={`array-cell sorting-bar ${isActive ? 'is-active ' + activeClass : ''} ${
+                    isSorted ? 'is-sorted is-sorted-cell' : ''
                   } ${isPivot ? 'bar-pivot' : ''} ${isInPartition ? 'is-in-partition' : 'is-outside-partition'}`}
-                  style={{ height: `${pct}%` }}
                   title={`Index: ${idx}, Value: ${val}${isPivot ? ' (PIVOT)' : ''}${
                     isSorted ? ' (Sorted)' : ''
                   }${isInPartition ? ' [In Partition]' : ' [Outside]'}`}
                 >
                   {isPivot && <span className="pivot-floating-tag">PIVOT</span>}
-                  {isBoundary && !isPivot && <span className="pointer-tag boundary-tag">i</span>}
-                  {isScan && !isPivot && <span className="pointer-tag scan-tag">j</span>}
-                  {showValues && <span className="sorting-bar-value">{val}</span>}
+                  {isBoundary && <span className="pointer-tag boundary-tag">i</span>}
+                  {isScan && <span className="pointer-tag scan-tag">j</span>}
+                  <small className="sorting-bar-index">{idx}</small>
+                  <b className="sorting-bar-value">{val}</b>
                 </div>
-                {showIndices && <span className="sorting-bar-index">{idx}</span>}
               </div>
             );
           })}
@@ -319,36 +275,31 @@ export function ChronoEngine({
   }
 
   /* =========================================================================
-     Mode 4: STANDARD_BAR_CHART / SORTING_BARS (Sequential Sorts: Bubble, Selection, Insertion)
+     Mode 3: STANDARD 1D ARRAY Mode (Sequential sorts & Final Sorted State)
      ========================================================================= */
   return (
     <div
-      className="chrono-engine sorting-bars-container"
+      className="chrono-engine array-view sorting-bars-container"
       data-testid="chrono-engine"
       data-mode="SORTING_BARS"
-      style={{ height: typeof height === 'number' ? `${height}px` : height }}
+      style={{ minHeight: typeof height === 'number' ? `${height}px` : height }}
     >
-      <div className="sorting-bars-viewport" role="region" aria-label="Sorting bars visualizer">
+      <div className="sorting-bars-viewport" role="region" aria-label="Sorting array viewport">
         {array.map((val, idx) => {
           const isActive = activeIndices.has(idx);
           const isSorted = sortedIndices.has(idx);
 
-          // Scaled height percentage: between 12% and 94%
-          const pct = Math.max(12, Math.min(94, ((val - minVal) / range) * 82 + 12));
-
           let activeClass = '';
           if (isActive) {
-            if (actionType === 'SWAP') activeClass = 'bar-active-swap';
-            else if (actionType === 'COMPARE') activeClass = 'bar-active-compare';
+            if (actionType === 'SWAP') activeClass = 'bar-active-swap is-moved';
+            else if (actionType === 'COMPARE') activeClass = 'bar-active-compare is-compared';
             else activeClass = 'bar-active-overwrite';
           }
 
+          const isTarget = step?.mergedTargetIndex === idx;
+
           return (
-            <div
-              key={idx}
-              className="sorting-bar-wrapper"
-              data-testid={`sorting-bar-wrapper-${idx}`}
-            >
+            <div key={idx} className="sorting-bar-wrapper" data-testid={`sorting-bar-wrapper-${idx}`}>
               <div
                 data-testid={`sorting-bar-${idx}`}
                 data-index={idx}
@@ -356,26 +307,26 @@ export function ChronoEngine({
                 data-active={isActive}
                 data-sorted={isSorted}
                 data-action={isActive ? actionType : undefined}
-                className={`sorting-bar ${isActive ? 'is-active ' + activeClass : ''} ${
-                  isSorted ? 'is-sorted' : ''
-                }`}
-                style={{ height: `${pct}%` }}
-                title={`Index: ${idx}, Value: ${val}${isSorted ? ' (Sorted)' : ''}${
-                  isActive ? ` (${actionType})` : ''
-                }`}
+                className={`array-cell sorting-bar ${isActive ? 'is-active ' + activeClass : ''} ${
+                  isSorted ? 'is-sorted is-sorted-cell' : ''
+                } ${isTarget ? 'is-target-merged' : ''}`}
+                title={`Index: ${idx}, Value: ${val}${isSorted ? ' (Sorted)' : ''}`}
               >
-                {showValues && <span className="sorting-bar-value">{val}</span>}
+                {isTarget && <span className="target-merge-badge">MERGE</span>}
+                <small className="sorting-bar-index">{idx}</small>
+                <b className="sorting-bar-value">{val}</b>
               </div>
-              {showIndices && <span className="sorting-bar-index">{idx}</span>}
             </div>
           );
         })}
+
         {array.length === 0 && (
           <div className="sorting-empty-notice" data-testid="sorting-empty">
             Empty array (N = 0)
           </div>
         )}
       </div>
+
       {step?.description && (
         <div className="sorting-step-description" data-testid="sorting-step-desc">
           {step.description}

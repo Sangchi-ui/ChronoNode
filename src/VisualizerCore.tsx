@@ -711,8 +711,11 @@ export function Visual({ event, animate, source }: { event?: TraceEvent; animate
 
   if (isMergeSort && array && Array.isArray(array[1]) && array[1].length > 0 && array[1].every(x => typeof x === 'number')) {
     const arr = array[1] as number[];
+    const isCompleted = event.eventType === 'complete' || (event.callStack.length <= 1 && /return\s+merged|complete/i.test(event.explanation || event.statement));
+    const sortedIndices = isCompleted ? Array.from({ length: arr.length }, (_, k) => k) : [];
+
     const subArrays = [];
-    if (Array.isArray(state.left) && Array.isArray(state.right)) {
+    if (!isCompleted && Array.isArray(state.left) && Array.isArray(state.right)) {
       subArrays.push({
         id: 'L',
         start: 0,
@@ -731,7 +734,7 @@ export function Visual({ event, animate, source }: { event?: TraceEvent; animate
         phase: 'merge' as const,
         active: true,
       });
-    } else if (event.depth && event.depth > 1) {
+    } else if (!isCompleted && event.depth && event.depth > 1) {
       const mid = Math.floor(arr.length / 2);
       subArrays.push({
         id: 'L',
@@ -754,7 +757,7 @@ export function Visual({ event, animate, source }: { event?: TraceEvent; animate
     }
     return (
       <ChronoEngine
-        mode="DIVIDE_AND_CONQUER"
+        mode={isCompleted ? 'SORTING_BARS' : 'DIVIDE_AND_CONQUER'}
         array={arr}
         activeIndices={event.focus?.indices || []}
         actionType={event.operation === 'swap' ? 'SWAP' : event.operation === 'write' ? 'OVERWRITE' : 'COMPARE'}
@@ -762,7 +765,7 @@ export function Visual({ event, animate, source }: { event?: TraceEvent; animate
           type: event.operation === 'swap' ? 'SWAP' : event.operation === 'write' ? 'OVERWRITE' : 'COMPARE',
           indices: event.focus?.indices || [],
           array: arr,
-          sortedIndices: [],
+          sortedIndices,
           subArrays: subArrays.length ? subArrays : undefined,
           leftPointer: typeof state.i === 'number' ? (state.i as number) : undefined,
           rightPointer: typeof state.j === 'number' ? (state.j as number) : undefined,
@@ -774,6 +777,9 @@ export function Visual({ event, animate, source }: { event?: TraceEvent; animate
 
   if (isQuickSort && array && Array.isArray(array[1]) && array[1].length > 0 && array[1].every(x => typeof x === 'number')) {
     const arr = array[1] as number[];
+    const isCompleted = event.eventType === 'complete' || (event.callStack.length <= 1 && /return\s+arr|complete/i.test(event.explanation || event.statement));
+    const sortedIndices = isCompleted ? Array.from({ length: arr.length }, (_, k) => k) : [];
+
     const pivotVal = state.pivot;
     const pivotIdx = typeof pivotVal === 'number' ? arr.lastIndexOf(pivotVal) : (typeof state.high === 'number' && state.high < arr.length ? state.high : undefined);
     const low = typeof state.low === 'number' ? state.low : 0;
@@ -781,7 +787,7 @@ export function Visual({ event, animate, source }: { event?: TraceEvent; animate
 
     return (
       <ChronoEngine
-        mode="PARTITION_SWAP"
+        mode={isCompleted ? 'SORTING_BARS' : 'PARTITION_SWAP'}
         array={arr}
         activeIndices={event.focus?.indices || []}
         actionType={event.operation === 'swap' ? 'SWAP' : 'COMPARE'}
@@ -789,7 +795,7 @@ export function Visual({ event, animate, source }: { event?: TraceEvent; animate
           type: event.operation === 'swap' ? 'SWAP' : 'COMPARE',
           indices: event.focus?.indices || [],
           array: arr,
-          sortedIndices: [],
+          sortedIndices,
           pivotIndex: pivotIdx !== -1 ? pivotIdx : undefined,
           partitionRange: [low, high],
           boundaryPointer: typeof state.i === 'number' ? state.i : undefined,
@@ -802,17 +808,21 @@ export function Visual({ event, animate, source }: { event?: TraceEvent; animate
 
   if (isBasicSort && array && Array.isArray(array[1]) && array[1].length > 0 && array[1].every(x => typeof x === 'number')) {
     const arr = array[1] as number[];
-    const sortedIndices: number[] = [];
-    if (typeof state.end === 'number' && state.end < arr.length - 1) {
-      for (let k = (state.end as number) + 1; k < arr.length; k++) sortedIndices.push(k);
-    } else if (typeof state.start === 'number' && (state.start as number) > 0) {
-      for (let k = 0; k < (state.start as number); k++) sortedIndices.push(k);
-    } else if (typeof state.i === 'number' && /bubble/i.test(source)) {
-      const iVal = state.i as number;
-      for (let k = Math.max(0, arr.length - iVal); k < arr.length; k++) sortedIndices.push(k);
-    } else if (typeof state.i === 'number' && /selection/i.test(source)) {
-      const iVal = state.i as number;
-      for (let k = 0; k < iVal; k++) sortedIndices.push(k);
+    const isCompleted = event.eventType === 'complete';
+    const sortedIndices: number[] = isCompleted ? Array.from({ length: arr.length }, (_, k) => k) : [];
+
+    if (!isCompleted) {
+      if (typeof state.end === 'number' && state.end < arr.length - 1) {
+        for (let k = (state.end as number) + 1; k < arr.length; k++) sortedIndices.push(k);
+      } else if (typeof state.start === 'number' && (state.start as number) > 0) {
+        for (let k = 0; k < (state.start as number); k++) sortedIndices.push(k);
+      } else if (typeof state.i === 'number' && /bubble/i.test(source)) {
+        const iVal = state.i as number;
+        for (let k = Math.max(0, arr.length - iVal); k < arr.length; k++) sortedIndices.push(k);
+      } else if (typeof state.i === 'number' && /selection/i.test(source)) {
+        const iVal = state.i as number;
+        for (let k = 0; k < iVal; k++) sortedIndices.push(k);
+      }
     }
 
     return (
@@ -832,6 +842,8 @@ export function Visual({ event, animate, source }: { event?: TraceEvent; animate
     );
   }
 
+  const isAnySort = /\b(sort|sorting|partition|merge)\b/i.test(source) || /\b(sort|sorting|partition|merge)\b/i.test(event.function || '');
+
   const routes: Record<VisualizerRoute, () => React.ReactNode> = {
     graph: () => graphEntry ? <GraphView event={event} graph={graphEntry[1] as Record<string, unknown>}/> : <StateSummaryView state={state}/>,
     'linked-list': () => linked ? <LinkedListView event={event} root={linked[1]}/> : <div className="linked-view"><span className="muted">Initializing linked list...</span></div>,
@@ -847,7 +859,21 @@ export function Visual({ event, animate, source }: { event?: TraceEvent; animate
     string: () => stringValue ? <StringView event={event} name={stringValue[0]} value={stringValue[1]} state={state} animate={animate}/> : <StateSummaryView state={state}/>,
     'hash-table': () => hashValue ? <MappingView value={hashValue}/> : array ? <ArrayView event={event} value={array[1]} name={array[0]} animate={animate}/> : <StateSummaryView state={state}/>,
     'union-find': () => <UnionFindView event={event} state={state}/>,
-    recursion: () => <RecursionView event={event}/>,
+    recursion: () => isAnySort && array && Array.isArray(array[1]) && array[1].length > 0 && array[1].every(x => typeof x === 'number') ? (
+      <ChronoEngine
+        mode="SORTING_BARS"
+        array={array[1] as number[]}
+        activeIndices={event.focus?.indices || []}
+        actionType={event.operation === 'swap' ? 'SWAP' : 'COMPARE'}
+        step={{
+          type: event.operation === 'swap' ? 'SWAP' : 'COMPARE',
+          indices: event.focus?.indices || [],
+          array: array[1] as number[],
+          sortedIndices: event.eventType === 'complete' ? Array.from({ length: (array[1] as number[]).length }, (_, k) => k) : [],
+          description: event.explanation || event.statement,
+        }}
+      />
+    ) : <RecursionView event={event}/>,
     bitwise: () => <BitwiseView state={state}/>,
     geometry: () => <GeometryView state={state}/>,
     mathematical: () => <MathematicalView event={event} state={state}/>,
