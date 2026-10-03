@@ -2,6 +2,7 @@ import React from 'react';
 import { AlertCircle } from 'lucide-react';
 import type { TraceEvent } from './trace';
 import { resolveVisualizerRoute, type VisualizerRoute } from './visualizer-routing';
+import { ChronoEngine } from './ChronoEngine';
 
 export const pretty = (value: unknown): string => {
   if (typeof value === 'string') return value;
@@ -698,6 +699,139 @@ export function Visual({ event, animate, source }: { event?: TraceEvent; animate
   const graphEntry = annotatedValue && typeof annotatedValue === 'object' && !Array.isArray(annotatedValue) ? [annotatedName!, annotatedValue as Record<string, unknown>] as [string, Record<string, unknown>] : Object.entries(state).find(([name, value]) => /^(graph|network|adj|adjacency)$/i.test(name) && !!value && typeof value === 'object' && !Array.isArray(value));
   const hashEntry = Object.entries(state).find(([name, value]) => /hash|table|map|count|freq/i.test(name) && !!value && typeof value === 'object' && !Array.isArray(value));
   const hashValue = hashEntry?.[1] as Record<string, unknown> | undefined;
+
+  // Structural sorting algorithm detection for classroom pedagogy
+  const isMergeSort = /\b(merge_sort|mergesort|merge\s+sort)\b/i.test(source) || /\b(merge_sort|mergesort|merge)\b/i.test(event.function || '');
+  const isQuickSort = /\b(quick_sort|quicksort|quick\s+sort|partition)\b/i.test(source) || /\b(quick_sort|quicksort|partition)\b/i.test(event.function || '');
+  const isBasicSort = /\b(bubble_sort|selection_sort|insertion_sort|bubble\s+sort|selection\s+sort|insertion\s+sort)\b/i.test(source) ||
+    /\b(bubble_sort|selection_sort|insertion_sort)\b/i.test(event.function || '') ||
+    (source.includes('values[index] > values[index + 1]') && source.includes('values[index], values[index + 1] =')) ||
+    (source.includes('smallest = index') && source.includes('values[start], values[smallest] =')) ||
+    (source.includes('values[position - 1] > current') && source.includes('values[position] = current'));
+
+  if (isMergeSort && array && Array.isArray(array[1]) && array[1].length > 0 && array[1].every(x => typeof x === 'number')) {
+    const arr = array[1] as number[];
+    const subArrays = [];
+    if (Array.isArray(state.left) && Array.isArray(state.right)) {
+      subArrays.push({
+        id: 'L',
+        start: 0,
+        end: (state.left as number[]).length - 1,
+        values: state.left as number[],
+        level: event.depth || 1,
+        phase: 'merge' as const,
+        active: true,
+      });
+      subArrays.push({
+        id: 'R',
+        start: 0,
+        end: (state.right as number[]).length - 1,
+        values: state.right as number[],
+        level: event.depth || 1,
+        phase: 'merge' as const,
+        active: true,
+      });
+    } else if (event.depth && event.depth > 1) {
+      const mid = Math.floor(arr.length / 2);
+      subArrays.push({
+        id: 'L',
+        start: 0,
+        end: mid - 1,
+        values: arr.slice(0, mid),
+        level: event.depth,
+        phase: 'split' as const,
+        active: true,
+      });
+      subArrays.push({
+        id: 'R',
+        start: mid,
+        end: arr.length - 1,
+        values: arr.slice(mid),
+        level: event.depth,
+        phase: 'split' as const,
+        active: true,
+      });
+    }
+    return (
+      <ChronoEngine
+        mode="DIVIDE_AND_CONQUER"
+        array={arr}
+        activeIndices={event.focus?.indices || []}
+        actionType={event.operation === 'swap' ? 'SWAP' : event.operation === 'write' ? 'OVERWRITE' : 'COMPARE'}
+        step={{
+          type: event.operation === 'swap' ? 'SWAP' : event.operation === 'write' ? 'OVERWRITE' : 'COMPARE',
+          indices: event.focus?.indices || [],
+          array: arr,
+          sortedIndices: [],
+          subArrays: subArrays.length ? subArrays : undefined,
+          leftPointer: typeof state.i === 'number' ? (state.i as number) : undefined,
+          rightPointer: typeof state.j === 'number' ? (state.j as number) : undefined,
+          description: event.explanation || event.statement,
+        }}
+      />
+    );
+  }
+
+  if (isQuickSort && array && Array.isArray(array[1]) && array[1].length > 0 && array[1].every(x => typeof x === 'number')) {
+    const arr = array[1] as number[];
+    const pivotVal = state.pivot;
+    const pivotIdx = typeof pivotVal === 'number' ? arr.lastIndexOf(pivotVal) : (typeof state.high === 'number' && state.high < arr.length ? state.high : undefined);
+    const low = typeof state.low === 'number' ? state.low : 0;
+    const high = typeof state.high === 'number' ? state.high : arr.length - 1;
+
+    return (
+      <ChronoEngine
+        mode="PARTITION_SWAP"
+        array={arr}
+        activeIndices={event.focus?.indices || []}
+        actionType={event.operation === 'swap' ? 'SWAP' : 'COMPARE'}
+        step={{
+          type: event.operation === 'swap' ? 'SWAP' : 'COMPARE',
+          indices: event.focus?.indices || [],
+          array: arr,
+          sortedIndices: [],
+          pivotIndex: pivotIdx !== -1 ? pivotIdx : undefined,
+          partitionRange: [low, high],
+          boundaryPointer: typeof state.i === 'number' ? state.i : undefined,
+          scanPointer: typeof state.j === 'number' ? state.j : undefined,
+          description: event.explanation || event.statement,
+        }}
+      />
+    );
+  }
+
+  if (isBasicSort && array && Array.isArray(array[1]) && array[1].length > 0 && array[1].every(x => typeof x === 'number')) {
+    const arr = array[1] as number[];
+    const sortedIndices: number[] = [];
+    if (typeof state.end === 'number' && state.end < arr.length - 1) {
+      for (let k = (state.end as number) + 1; k < arr.length; k++) sortedIndices.push(k);
+    } else if (typeof state.start === 'number' && (state.start as number) > 0) {
+      for (let k = 0; k < (state.start as number); k++) sortedIndices.push(k);
+    } else if (typeof state.i === 'number' && /bubble/i.test(source)) {
+      const iVal = state.i as number;
+      for (let k = Math.max(0, arr.length - iVal); k < arr.length; k++) sortedIndices.push(k);
+    } else if (typeof state.i === 'number' && /selection/i.test(source)) {
+      const iVal = state.i as number;
+      for (let k = 0; k < iVal; k++) sortedIndices.push(k);
+    }
+
+    return (
+      <ChronoEngine
+        mode="SORTING_BARS"
+        array={arr}
+        activeIndices={event.focus?.indices || []}
+        actionType={event.operation === 'swap' ? 'SWAP' : 'COMPARE'}
+        step={{
+          type: event.operation === 'swap' ? 'SWAP' : 'COMPARE',
+          indices: event.focus?.indices || [],
+          array: arr,
+          sortedIndices,
+          description: event.explanation || event.statement,
+        }}
+      />
+    );
+  }
+
   const routes: Record<VisualizerRoute, () => React.ReactNode> = {
     graph: () => graphEntry ? <GraphView event={event} graph={graphEntry[1] as Record<string, unknown>}/> : <StateSummaryView state={state}/>,
     'linked-list': () => linked ? <LinkedListView event={event} root={linked[1]}/> : <div className="linked-view"><span className="muted">Initializing linked list...</span></div>,

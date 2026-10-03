@@ -1,4 +1,14 @@
-export type SortingActionType = 'COMPARE' | 'SWAP' | 'OVERWRITE';
+export type SortingActionType = 'COMPARE' | 'SWAP' | 'OVERWRITE' | 'SPLIT' | 'MERGE';
+
+export interface SubArrayBlock {
+  id: string;
+  start: number;
+  end: number;
+  values: number[];
+  level: number;
+  phase: 'split' | 'merge' | 'idle';
+  active?: boolean;
+}
 
 export interface SortingStep {
   type: SortingActionType;
@@ -6,6 +16,18 @@ export interface SortingStep {
   array: number[];
   sortedIndices: number[];
   description?: string;
+  // Divide and Conquer (Merge Sort)
+  subArrays?: SubArrayBlock[];
+  activeLevel?: number;
+  leftPointer?: number;
+  rightPointer?: number;
+  mergedTargetIndex?: number;
+  splitIndices?: [number, number];
+  // Partition Swap (Quick Sort)
+  pivotIndex?: number;
+  partitionRange?: [number, number];
+  boundaryPointer?: number;
+  scanPointer?: number;
 }
 
 export interface SortingTelemetry {
@@ -241,15 +263,49 @@ export function* mergeSortGenerator(arrInput: number[]): Generator<SortingStep, 
       array: [...arr],
       sortedIndices: Array.from(sorted),
       description: n === 1 ? 'Single element array is already sorted' : 'Empty array',
+      subArrays: n === 1 ? [{ id: '0-0', start: 0, end: 0, values: [...arr], level: 0, phase: 'idle', active: true }] : [],
     };
     return arr;
   }
 
-  function* mergeSortHelper(start: number, end: number): Generator<SortingStep, void, unknown> {
+  function* mergeSortHelper(start: number, end: number, depth: number): Generator<SortingStep, void, unknown> {
     if (start >= end) return;
     const mid = Math.floor((start + end) / 2);
-    yield* mergeSortHelper(start, mid);
-    yield* mergeSortHelper(mid + 1, end);
+
+    const leftSubArray: SubArrayBlock = {
+      id: `L-${start}-${mid}`,
+      start,
+      end: mid,
+      values: arr.slice(start, mid + 1),
+      level: depth + 1,
+      phase: 'split',
+      active: true,
+    };
+    const rightSubArray: SubArrayBlock = {
+      id: `R-${mid + 1}-${end}`,
+      start: mid + 1,
+      end,
+      values: arr.slice(mid + 1, end + 1),
+      level: depth + 1,
+      phase: 'split',
+      active: true,
+    };
+
+    // Explicit structural SPLIT event showing physical separation
+    yield {
+      type: 'SPLIT',
+      indices: [mid, mid + 1],
+      array: [...arr],
+      sortedIndices: Array.from(sorted),
+      description: `Divide: Splitting array [${start}..${end}] into left sub-array [${start}..${mid}] and right sub-array [${mid + 1}..${end}]`,
+      subArrays: [leftSubArray, rightSubArray],
+      activeLevel: depth + 1,
+      splitIndices: [start, end],
+      partitionRange: [start, end],
+    };
+
+    yield* mergeSortHelper(start, mid, depth + 1);
+    yield* mergeSortHelper(mid + 1, end, depth + 1);
 
     const temp: number[] = [];
     let i = start;
@@ -261,7 +317,15 @@ export function* mergeSortGenerator(arrInput: number[]): Generator<SortingStep, 
         indices: [i, j],
         array: [...arr],
         sortedIndices: Array.from(sorted),
-        description: `Comparing left partition element arr[${i}] (${arr[i]}) with right arr[${j}] (${arr[j]})`,
+        description: `Conquer/Merge: Comparing left sub-array arr[${i}] (${arr[i]}) with right sub-array arr[${j}] (${arr[j]})`,
+        leftPointer: i,
+        rightPointer: j,
+        activeLevel: depth,
+        partitionRange: [start, end],
+        subArrays: [
+          { id: `L-${start}-${mid}`, start, end: mid, values: arr.slice(start, mid + 1), level: depth, phase: 'merge', active: true },
+          { id: `R-${mid + 1}-${end}`, start: mid + 1, end, values: arr.slice(mid + 1, end + 1), level: depth, phase: 'merge', active: true },
+        ],
       };
 
       if (arr[i] <= arr[j]) {
@@ -282,12 +346,15 @@ export function* mergeSortGenerator(arrInput: number[]): Generator<SortingStep, 
         indices: [start + k],
         array: [...arr],
         sortedIndices: Array.from(sorted),
-        description: `Merged sorted element into arr[${start + k}]`,
+        description: `Merged sorted element (${temp[k]}) into arr[${start + k}]`,
+        mergedTargetIndex: start + k,
+        activeLevel: depth,
+        partitionRange: [start, end],
       };
     }
   }
 
-  yield* mergeSortHelper(0, n - 1);
+  yield* mergeSortHelper(0, n - 1, 0);
   for (let k = 0; k < n; k++) sorted.add(k);
   yield {
     type: 'COMPARE',
@@ -327,13 +394,34 @@ export function* quickSortGenerator(arrInput: number[]): Generator<SortingStep, 
       const pivot = arr[high];
       let i = low - 1;
 
+      // Yield partition announcement frame
+      yield {
+        type: 'COMPARE',
+        indices: [high],
+        array: [...arr],
+        sortedIndices: Array.from(sorted),
+        description: `Active Partition: [${low}..${high}] with Pivot arr[${high}] (${pivot})`,
+        pivotIndex: high,
+        partitionRange: [low, high],
+        leftPointer: low,
+        rightPointer: high - 1,
+        boundaryPointer: i,
+        scanPointer: low,
+      };
+
       for (let j = low; j < high; j++) {
         yield {
           type: 'COMPARE',
           indices: [j, high],
           array: [...arr],
           sortedIndices: Array.from(sorted),
-          description: `Comparing arr[${j}] (${arr[j]}) with pivot arr[${high}] (${pivot})`,
+          description: `Comparing scan arr[${j}] (${arr[j]}) with pivot arr[${high}] (${pivot}) in partition [${low}..${high}]`,
+          pivotIndex: high,
+          partitionRange: [low, high],
+          leftPointer: i >= low ? i : low,
+          rightPointer: j,
+          boundaryPointer: i,
+          scanPointer: j,
         };
 
         if (arr[j] <= pivot) {
@@ -348,7 +436,13 @@ export function* quickSortGenerator(arrInput: number[]): Generator<SortingStep, 
               indices: [i, j],
               array: [...arr],
               sortedIndices: Array.from(sorted),
-              description: `Partition swap: arr[${i}] and arr[${j}]`,
+              description: `Partition swap: placed smaller element arr[${j}] into boundary position arr[${i}]`,
+              pivotIndex: high,
+              partitionRange: [low, high],
+              leftPointer: i,
+              rightPointer: j,
+              boundaryPointer: i,
+              scanPointer: j,
             };
           }
         }
@@ -366,6 +460,10 @@ export function* quickSortGenerator(arrInput: number[]): Generator<SortingStep, 
           array: [...arr],
           sortedIndices: Array.from(sorted),
           description: `Placed pivot (${pivot}) at its partition position arr[${p}]`,
+          pivotIndex: p,
+          partitionRange: [low, high],
+          leftPointer: p,
+          rightPointer: high,
         };
       }
 
@@ -375,7 +473,9 @@ export function* quickSortGenerator(arrInput: number[]): Generator<SortingStep, 
         indices: [p],
         array: [...arr],
         sortedIndices: Array.from(sorted),
-        description: `Pivot locked at index ${p}`,
+        description: `Pivot locked in final sorted position at index ${p}`,
+        pivotIndex: p,
+        partitionRange: [low, high],
       };
 
       yield* quickSortHelper(low, p - 1);

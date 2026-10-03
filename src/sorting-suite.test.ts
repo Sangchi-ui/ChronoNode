@@ -77,7 +77,7 @@ describe('ChronoNode Sorting Algorithms: Rigorous Test & Visual Verification Sui
                 // Must preserve array length at every frame
                 expect(step.array.length).toBe(testCase.input.length);
                 // Must maintain valid action type
-                expect(['COMPARE', 'SWAP', 'OVERWRITE']).toContain(step.type);
+                expect(['COMPARE', 'SWAP', 'OVERWRITE', 'SPLIT', 'MERGE']).toContain(step.type);
                 // All active indices must be within array bounds
                 for (const idx of step.indices) {
                   expect(idx).toBeGreaterThanOrEqual(0);
@@ -195,7 +195,7 @@ describe('ChronoNode Sorting Algorithms: Rigorous Test & Visual Verification Sui
       for (const [, generatorFn] of algorithmEntries) {
         const { steps } = collectSortingSteps(generatorFn([4, 2, 5, 1, 3]));
         for (const step of steps) {
-          expect(['SWAP', 'COMPARE', 'OVERWRITE']).toContain(step.type);
+          expect(['SWAP', 'COMPARE', 'OVERWRITE', 'SPLIT', 'MERGE']).toContain(step.type);
           expect(Array.isArray(step.indices)).toBe(true);
           expect(Array.isArray(step.array)).toBe(true);
           expect(Array.isArray(step.sortedIndices)).toBe(true);
@@ -293,6 +293,97 @@ describe('ChronoNode Sorting Algorithms: Rigorous Test & Visual Verification Sui
       // At completion, all elements must be locked as sorted
       expect(finalStepSeen).toBe(true);
       expect(previousSortedCount).toBe(input.length);
+    });
+
+    it('DIVIDE_AND_CONQUER Mode: Merge Sort renders physically separated sub-arrays and pointers', () => {
+      const generator = mergeSortGenerator([8, 3, 5, 2]);
+      const { steps } = collectSortingSteps(generator);
+
+      // Find a SPLIT step
+      const splitStep = steps.find((s) => s.type === 'SPLIT');
+      expect(splitStep).toBeDefined();
+      expect(splitStep?.subArrays?.length).toBe(2);
+
+      const htmlSplit = renderToStaticMarkup(
+        React.createElement(ChronoEngine, {
+          mode: 'DIVIDE_AND_CONQUER',
+          step: splitStep,
+        })
+      );
+
+      expect(htmlSplit).toContain('data-mode="DIVIDE_AND_CONQUER"');
+      expect(htmlSplit).toContain('data-testid="divide-conquer-header"');
+      expect(htmlSplit).toContain('data-testid="subarray-left"');
+      expect(htmlSplit).toContain('data-testid="subarray-right"');
+      expect(htmlSplit).toContain('LEFT SUB-ARRAY');
+      expect(htmlSplit).toContain('RIGHT SUB-ARRAY');
+
+      // Find a MERGE/COMPARE step with left/right pointers
+      const mergeStep = steps.find(
+        (s) => s.leftPointer !== undefined && s.rightPointer !== undefined
+      );
+      expect(mergeStep).toBeDefined();
+
+      const htmlMerge = renderToStaticMarkup(
+        React.createElement(ChronoEngine, {
+          mode: 'DIVIDE_AND_CONQUER',
+          step: mergeStep,
+        })
+      );
+
+      expect(htmlMerge).toContain('sub-pointer-tag');
+      expect(htmlMerge).toContain('>L<');
+      expect(htmlMerge).toContain('>R<');
+
+      // Find an OVERWRITE step with merged target
+      const targetStep = steps.find((s) => s.mergedTargetIndex !== undefined);
+      expect(targetStep).toBeDefined();
+
+      const htmlTarget = renderToStaticMarkup(
+        React.createElement(ChronoEngine, {
+          mode: 'DIVIDE_AND_CONQUER',
+          step: targetStep,
+        })
+      );
+
+      expect(htmlTarget).toContain('is-target-merged');
+      expect(htmlTarget).toContain('target-merge-badge');
+    });
+
+    it('PARTITION_SWAP Mode: Quick Sort distinctly highlights pivot and dims elements outside active partition', () => {
+      const generator = quickSortGenerator([50, 20, 80, 10, 40]);
+      const { steps } = collectSortingSteps(generator);
+
+      // Find a step with a pivot and partition range
+      const partitionStep = steps.find(
+        (s) => s.pivotIndex !== undefined && s.partitionRange !== undefined && s.indices.length >= 2
+      );
+      expect(partitionStep).toBeDefined();
+
+      const htmlPartition = renderToStaticMarkup(
+        React.createElement(ChronoEngine, {
+          mode: 'PARTITION_SWAP',
+          step: partitionStep,
+        })
+      );
+
+      expect(htmlPartition).toContain('data-mode="PARTITION_SWAP"');
+      expect(htmlPartition).toContain('data-testid="partition-header"');
+      expect(htmlPartition).toContain('data-testid="pivot-indicator"');
+      expect(htmlPartition).toContain('bar-pivot');
+      expect(htmlPartition).toContain('pivot-floating-tag');
+      expect(htmlPartition).toContain('>PIVOT<');
+
+      // Verify partition boundary separation: elements inside vs outside
+      const [low, high] = partitionStep!.partitionRange!;
+      for (let i = 0; i < partitionStep!.array.length; i++) {
+        const barTag = getBarTag(htmlPartition, i);
+        if (i >= low && i <= high) {
+          expect(barTag).toContain('is-in-partition');
+        } else {
+          expect(barTag).toContain('is-outside-partition');
+        }
+      }
     });
   });
 
